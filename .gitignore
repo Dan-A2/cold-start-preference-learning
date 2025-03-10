@@ -1,0 +1,8 @@
+# Ignore dataset file
+Datasets/Household/h.csv
+
+# Ignore typical temporary files
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
