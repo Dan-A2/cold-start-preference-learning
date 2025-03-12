@@ -537,11 +537,8 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
 
     all_pairs = generate_all_pairs(df)
 
-    current_model_ub = None  # Initially, there is no trained model
-    UB_model_params = pretrain_params.copy()
-    UB_model_params["objective"] = "binary:logistic"
-
     # Uncertainty-based selection loop for blank
+    current_model_ub = None  # Initially, there is no trained model
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with uncertainty pairs"):
         if current_model_ub is None:
             sampled_pair_indices = np.random.choice(len(all_pairs), size=batch_size, replace=False)
@@ -567,9 +564,9 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
         
         # Train or update the blank model
         if current_model_ub is None:
-            current_model_ub = xgb.train(UB_model_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS)
+            current_model_ub = xgb.train(pretrain_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS)
         else:
-            current_model_ub = xgb.train(UB_model_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_ub)
+            current_model_ub = xgb.train(pretrain_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_ub)
         
         y_pred_ub = current_model_ub.predict(dtest)
         y_pred_ub_binary = (y_pred_ub > 0.5).astype(int)
@@ -605,6 +602,7 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
         f1_scores_UP.append(f1_up)
     
     # Blank model with random pairs loop
+    current_model_rb = None
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with random pairs"):
         random_pairs = generate_random_pairs(df, n=batch_size)
         if add_noise:
@@ -621,9 +619,12 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
         y_train_rb = train_df_rb['label']
         dtrain_rb = xgb.DMatrix(X_train_rb, label=y_train_rb, enable_categorical=True)
         
-        # Train the blank model from scratch
-        rb_model = xgb.train(pretrain_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS)
-        y_pred_rb = rb_model.predict(dtest)
+        if current_model_rb is None:
+            current_model_rb = xgb.train(pretrain_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS)
+        else:
+            current_model_rb = xgb.train(pretrain_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_rb)
+        
+        y_pred_rb = current_model_rb.predict(dtest)
         y_pred_rb_binary = (y_pred_rb > 0.5).astype(int)
         f1_rb = f1_score(y_test, y_pred_rb_binary)
         f1_scores_RB.append(f1_rb)
