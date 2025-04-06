@@ -520,25 +520,8 @@ def compare_finetuned_blank(df, test_df, pretrain_params, pretrained_model, targ
     return f1_scores_pretrained, f1_scores_untrained
 
 
-def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target_col, use_bradley, exp, add_noise, noise=0.05, total_pairs=100, batch_size=10):
-    '''
-    Compare three methods:
-    1. Blank model with uncertainty-based pairs
-    2. Pretrained model with uncertainty-based pairs
-    3. Blank model with random pairs
-    '''
-    f1_scores_UB = []
-    f1_scores_UP = []
-    f1_scores_RB = []
-
-    X_test = test_df.drop(columns=['label'])
-    y_test = test_df['label']
-    dtest = xgb.DMatrix(X_test, enable_categorical=True)
-
-    all_pairs = generate_all_pairs(df)
-
-    # Uncertainty-based selection loop for blank
-    current_model_ub = None  # Initially, there is no trained model
+def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
+    current_model_ub = None
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with uncertainty pairs"):
         if current_model_ub is None:
             sampled_pair_indices = np.random.choice(len(all_pairs), size=batch_size, replace=False)
@@ -562,7 +545,6 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
         y_train_ub = train_df_ub['label']
         dtrain_ub = xgb.DMatrix(X_train_ub, label=y_train_ub, enable_categorical=True)
         
-        # Train or update the blank model
         if current_model_ub is None:
             current_model_ub = xgb.train(pretrain_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS)
         else:
@@ -570,10 +552,10 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
         
         y_pred_ub = current_model_ub.predict(dtest)
         y_pred_ub_binary = (y_pred_ub > 0.5).astype(int)
-        f1_ub = f1_score(y_test, y_pred_ub_binary)
-        f1_scores_UB.append(f1_ub)
-    
-    # Uncertainty-based selection loop for pretrained
+        return f1_score(y_test, y_pred_ub_binary)
+
+
+def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
     current_model_up = pretrained_model.copy()
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Pretrained model with uncertainty pairs"):
         sampled_pair_indices = np.random.choice(len(all_pairs), size=10_000, replace=False)
@@ -594,14 +576,13 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
         y_train_up = train_df_up['label']
         dtrain_up = xgb.DMatrix(X_train_up, label=y_train_up, enable_categorical=True)
         
-        # Train the pretrained model on uncertain pairs
         current_model_up = xgb.train(pretrain_params, dtrain_up, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_up)
         y_pred_up = current_model_up.predict(dtest)
         y_pred_up_binary = (y_pred_up > 0.5).astype(int)
-        f1_up = f1_score(y_test, y_pred_up_binary)
-        f1_scores_UP.append(f1_up)
-    
-    # Blank model with random pairs loop
+        return f1_score(y_test, y_pred_up_binary)
+
+
+def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
     current_model_rb = None
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with random pairs"):
         random_pairs = generate_random_pairs(df, n=batch_size)
@@ -609,7 +590,7 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
             train_df_rb = create_pair_noisy(df, random_pairs, target_col, variance=noise)
         elif use_bradley:
             if exp:
-                train_df_rb = create_pair_bradley_exp(df, selected_pairs, target_col)
+                train_df_rb = create_pair_bradley_exp(df, random_pairs, target_col)
             else:
                 train_df_rb = create_pair_bradley(df, random_pairs, target_col)
         else:
@@ -626,8 +607,31 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
         
         y_pred_rb = current_model_rb.predict(dtest)
         y_pred_rb_binary = (y_pred_rb > 0.5).astype(int)
-        f1_rb = f1_score(y_test, y_pred_rb_binary)
-        f1_scores_RB.append(f1_rb)
+        return f1_score(y_test, y_pred_rb_binary)
+
+
+def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target_col, use_bradley, exp, add_noise, noise=0.05, total_pairs=100, batch_size=10):
+    '''
+    Compare three methods:
+    1. Blank model with uncertainty-based pairs
+    2. Pretrained model with uncertainty-based pairs
+    3. Blank model with random pairs
+    '''
+    f1_scores_UB = []
+    f1_scores_UP = []
+    f1_scores_RB = []
+
+    X_test = test_df.drop(columns=['label'])
+    y_test = test_df['label']
+    dtest = xgb.DMatrix(X_test, enable_categorical=True)
+    all_pairs = generate_all_pairs(df)
+    
+    f1_ub = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
+    f1_scores_UB.append(f1_ub)
+    f1_up = uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
+    f1_scores_UP.append(f1_up)
+    f1_rb = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
+    f1_scores_RB.append(f1_rb)
 
     return f1_scores_UB, f1_scores_UP, f1_scores_RB
 
