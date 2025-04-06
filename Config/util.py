@@ -522,6 +522,7 @@ def compare_finetuned_blank(df, test_df, pretrain_params, pretrained_model, targ
 
 def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
     current_model_ub = None
+    f1_scores = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with uncertainty pairs"):
         if current_model_ub is None:
             sampled_pair_indices = np.random.choice(len(all_pairs), size=batch_size, replace=False)
@@ -552,11 +553,14 @@ def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_no
         
         y_pred_ub = current_model_ub.predict(dtest)
         y_pred_ub_binary = (y_pred_ub > 0.5).astype(int)
-        return f1_score(y_test, y_pred_ub_binary)
+        f1_scores.append(f1_score(y_test, y_pred_ub_binary))
+    
+    return f1_scores
 
 
 def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
     current_model_up = pretrained_model.copy()
+    f1_scores = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Pretrained model with uncertainty pairs"):
         sampled_pair_indices = np.random.choice(len(all_pairs), size=10_000, replace=False)
         sampled_pairs = [all_pairs[i] for i in sampled_pair_indices]
@@ -579,11 +583,14 @@ def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs,
         current_model_up = xgb.train(pretrain_params, dtrain_up, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_up)
         y_pred_up = current_model_up.predict(dtest)
         y_pred_up_binary = (y_pred_up > 0.5).astype(int)
-        return f1_score(y_test, y_pred_up_binary)
+        f1_scores.append(f1_score(y_test, y_pred_up_binary))
+    
+    return f1_scores
 
 
 def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
-    current_model_rb = None
+    accumulated_train_data = []
+    f1_scores = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with random pairs"):
         random_pairs = generate_random_pairs(df, n=batch_size)
         if add_noise:
@@ -595,19 +602,21 @@ def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley
                 train_df_rb = create_pair_bradley(df, random_pairs, target_col)
         else:
             train_df_rb = create_pair_df(df, random_pairs, target_col)
-        
-        X_train_rb = train_df_rb.drop(columns=['label'])
-        y_train_rb = train_df_rb['label']
+
+        accumulated_train_data.append(train_df_rb)
+        full_train_df = pd.concat(accumulated_train_data, ignore_index=True)
+        X_train_rb = full_train_df.drop(columns=['label'])
+        y_train_rb = full_train_df['label']
+
         dtrain_rb = xgb.DMatrix(X_train_rb, label=y_train_rb, enable_categorical=True)
-        
-        if current_model_rb is None:
-            current_model_rb = xgb.train(pretrain_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS)
-        else:
-            current_model_rb = xgb.train(pretrain_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_rb)
-        
+        current_model_rb = xgb.train(pretrain_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS)
+
         y_pred_rb = current_model_rb.predict(dtest)
         y_pred_rb_binary = (y_pred_rb > 0.5).astype(int)
-        return f1_score(y_test, y_pred_rb_binary)
+        f1_scores.append(f1_score(y_test, y_pred_rb_binary))
+
+    return f1_scores
+
 
 
 def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target_col, use_bradley, exp, add_noise, noise=0.05, total_pairs=100, batch_size=10):
@@ -620,19 +629,16 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
     f1_scores_UB = []
     f1_scores_UP = []
     f1_scores_RB = []
-
+    
     X_test = test_df.drop(columns=['label'])
     y_test = test_df['label']
     dtest = xgb.DMatrix(X_test, enable_categorical=True)
     all_pairs = generate_all_pairs(df)
     
-    f1_ub = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
-    f1_scores_UB.append(f1_ub)
-    f1_up = uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
-    f1_scores_UP.append(f1_up)
-    f1_rb = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
-    f1_scores_RB.append(f1_rb)
-
+    f1_scores_UB = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
+    f1_scores_UP = uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
+    f1_scores_RB = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
+    
     return f1_scores_UB, f1_scores_UP, f1_scores_RB
 
 
