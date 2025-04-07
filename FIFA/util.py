@@ -1,3 +1,10 @@
+"""
+This file is written for exploration and not all the
+functions are used in the final code
+"""
+
+
+
 import numpy as np
 import pandas as pd
 from sklearn.calibration import LabelEncoder
