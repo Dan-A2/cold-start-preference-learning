@@ -471,23 +471,16 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
     
     return f1_scores_UB, f1_scores_UP, f1_scores_RB
 
-
 def calculate_pca_var(df, target_col_name, useless_cols=[]):
     useless_cols.append(target_col_name)
     features = df.drop(columns=useless_cols)
     target = df[target_col_name]
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
     pca = PCA(n_components=1)
-    pca_result = pca.fit_transform(features)
-
-    # Project the data points back to the PCA line
-    # pca_result[:, 0] gives the scalar projections (1-D array)
-    aligned_pca_values = pca_result[:, 0]  # These are the 1D PCA projections
-
-    # Compute residuals between the actual target values and the PCA projections
-    # The PCA projections are scaled, so align them with the target
+    pca_result = pca.fit_transform(features_scaled)
+    aligned_pca_values = pca_result[:, 0]
     residuals = target - aligned_pca_values
     residual_mean = np.mean(residuals)
-
-    # Calculate variance from residuals
-    variance = np.mean((residuals-residual_mean)**2)
+    variance = np.mean((residuals - residual_mean) ** 2)
     return variance, residuals
