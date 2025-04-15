@@ -486,7 +486,8 @@ def calculate_pca_var(df, target_col_name, useless_cols=[]):
     # Compute residuals between the actual target values and the PCA projections
     # The PCA projections are scaled, so align them with the target
     residuals = target - aligned_pca_values
+    residual_mean = np.mean(residuals)
 
     # Calculate variance from residuals
-    variance = np.mean(residuals**2)
+    variance = np.mean((residuals-residual_mean)**2)
     return variance, residuals
