@@ -2,10 +2,11 @@ import numpy as np
 import pandas as pd
 from sklearn.calibration import LabelEncoder
 from sklearn.decomposition import PCA
-from sklearn.discriminant_analysis import StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
 import xgboost as xgb
 from tqdm import tqdm
+import pickle
 
 
 XGB_ESTIMATORS = 500
@@ -74,6 +75,15 @@ def is_consumption(df, target_column, label_column, threshold=0.5):
 
     # If no high distances found, consider it a consumption variable
     return True
+
+
+def standardize_features(df, target_col_name):
+    numeric_cols = df.select_dtypes(include='number').columns.tolist()
+    if target_col_name in numeric_cols:
+        numeric_cols.remove(target_col_name)
+    scaler = StandardScaler()
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    return df
 
 
 def drop_redundant_cols(df):
@@ -470,6 +480,23 @@ def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target
     f1_scores_RB = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
     
     return f1_scores_UB, f1_scores_UP, f1_scores_RB
+
+
+def save_f1_scores(filename, ub_scores, up_scores, rb_scores):
+    data = {
+        'UB': ub_scores,
+        'UP': up_scores,
+        'RB': rb_scores
+    }
+    with open(filename, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def load_f1_scores(filename):
+    with open(filename, 'rb') as f:
+        data = pickle.load(f)
+    return data['UB'], data['UP'], data['RB']
+
 
 def calculate_pca_var(df, target_col_name, useless_cols=[]):
     useless_cols.append(target_col_name)
