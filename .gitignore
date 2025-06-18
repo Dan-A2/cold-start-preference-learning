@@ -1,6 +1,7 @@
 # Ignore dataset file
 Datasets/Household/h.csv
 FIFA/Dataset/archive.zip
+tmp.py
 
 # Ignore typical temporary files
 __pycache__/
