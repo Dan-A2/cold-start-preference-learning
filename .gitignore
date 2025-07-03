@@ -2,6 +2,8 @@
 Datasets/Household/h.csv
 FIFA/Dataset/archive.zip
 tmp.py
+Medical_code.ipynb
+Datasets/medical_costs.csv
 
 # Ignore typical temporary files
 __pycache__/

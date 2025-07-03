@@ -495,7 +495,7 @@ def save_f1_scores(filename, ub_scores, up_scores, rb_scores):
 def load_f1_scores(filename):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
-    return data['UB'], data['UP'], data['RB']
+    return data['UB'], data['UP'], data['RB'], data['line']
 
 
 def calculate_pca_var(df, target_col_name, useless_cols=[]):
