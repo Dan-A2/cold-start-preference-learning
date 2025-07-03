@@ -4,6 +4,11 @@ FIFA/Dataset/archive.zip
 tmp.py
 Medical_code.ipynb
 Datasets/medical_costs.csv
+Plots/medical1_f1_repeat.pkl
+Plots/medical1_f1_wide.pkl
+Plots/medical2_f1_repeat.pkl
+Plots/medical2_f1_wide.pkl
+
 
 # Ignore typical temporary files
 __pycache__/
