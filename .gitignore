@@ -1,5 +1,5 @@
 # Ignore dataset file
-Datasets/Household/h.csv
+Datasets/Household
 FIFA/Dataset/archive.zip
 tmp.py
 
