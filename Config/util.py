@@ -299,7 +299,7 @@ def calculate_metrics(y_test, y_pred):
     return accuracy, precision, recall, conf_matrix, f1
 
 
-def pretrain_model(df, n_samples, pretrain_params, target_col):
+def pretrain_model(df, n_samples, train_params, target_col):
     '''
     This function pretrains the model on n samples using the PCA score
     '''
@@ -308,11 +308,11 @@ def pretrain_model(df, n_samples, pretrain_params, target_col):
     X_pretrain = pretrain_df.drop(columns=['label'])
     y_pretrain = pretrain_df['label']
     dtrain_pretrain = xgb.DMatrix(X_pretrain, label=y_pretrain, enable_categorical=True)
-    pretrained_model = xgb.train(pretrain_params, dtrain_pretrain, num_boost_round=XGB_ESTIMATORS)
+    pretrained_model = xgb.train(train_params, dtrain_pretrain, num_boost_round=XGB_ESTIMATORS)
     return pretrained_model
 
 
-def pretrain_model_with_residuals(df, n_samples, pretrain_params, target_col, residuals):
+def pretrain_model_with_residuals(df, n_samples, train_params, target_col, residuals):
     '''
     This function pretrains the model on n samples using the PCA score
     '''
@@ -321,7 +321,7 @@ def pretrain_model_with_residuals(df, n_samples, pretrain_params, target_col, re
     X_pretrain = pretrain_df.drop(columns=['label'])
     y_pretrain = pretrain_df['label']
     dtrain_pretrain = xgb.DMatrix(X_pretrain, label=y_pretrain, enable_categorical=True)
-    pretrained_model = xgb.train(pretrain_params, dtrain_pretrain, num_boost_round=XGB_ESTIMATORS)
+    pretrained_model = xgb.train(train_params, dtrain_pretrain, num_boost_round=XGB_ESTIMATORS)
     return pretrained_model
 
 
@@ -360,7 +360,7 @@ def select_most_uncertain_pairs(model, df, pairs, batch_size, target_col):
     return selected_pairs
 
 
-def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
+def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test):
     current_model_ub = None
     f1_scores = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with uncertainty pairs"):
@@ -387,9 +387,9 @@ def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_no
         dtrain_ub = xgb.DMatrix(X_train_ub, label=y_train_ub, enable_categorical=True)
         
         if current_model_ub is None:
-            current_model_ub = xgb.train(pretrain_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS)
+            current_model_ub = xgb.train(train_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS)
         else:
-            current_model_ub = xgb.train(pretrain_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_ub)
+            current_model_ub = xgb.train(train_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_ub)
         
         y_pred_ub = current_model_ub.predict(dtest)
         y_pred_ub_binary = (y_pred_ub > 0.5).astype(int)
@@ -398,7 +398,7 @@ def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_no
     return f1_scores
 
 
-def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
+def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test):
     current_model_up = pretrained_model.copy()
     f1_scores = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Pretrained model with uncertainty pairs"):
@@ -420,7 +420,7 @@ def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs,
         y_train_up = train_df_up['label']
         dtrain_up = xgb.DMatrix(X_train_up, label=y_train_up, enable_categorical=True)
         
-        current_model_up = xgb.train(pretrain_params, dtrain_up, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_up)
+        current_model_up = xgb.train(train_params, dtrain_up, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_up)
         y_pred_up = current_model_up.predict(dtest)
         y_pred_up_binary = (y_pred_up > 0.5).astype(int)
         f1_scores.append(f1_score(y_test, y_pred_up_binary))
@@ -428,7 +428,7 @@ def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs,
     return f1_scores
 
 
-def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test):
+def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test):
     accumulated_train_data = []
     f1_scores = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with random pairs"):
@@ -449,7 +449,7 @@ def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley
         y_train_rb = full_train_df['label']
 
         dtrain_rb = xgb.DMatrix(X_train_rb, label=y_train_rb, enable_categorical=True)
-        current_model_rb = xgb.train(pretrain_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS)
+        current_model_rb = xgb.train(train_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS)
 
         y_pred_rb = current_model_rb.predict(dtest)
         y_pred_rb_binary = (y_pred_rb > 0.5).astype(int)
@@ -458,26 +458,31 @@ def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley
     return f1_scores
 
 
+def calculate_highest_f1(df, test_df, train_params, target_col, use_bradley, exp, total_pairs, batch_size):
+    X_test = test_df.drop(columns=['label'])
+    y_test = test_df['label']
+    dtest = xgb.DMatrix(X_test, enable_categorical=True)
+    all_pairs = generate_all_pairs(df)
+    f1_scores = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, False, use_bradley, exp, 0, train_params, dtest, y_test)
+    return max(f1_scores)
 
-def compare_three_methods(df, test_df, pretrain_params, pretrained_model, target_col, use_bradley, exp, add_noise, noise=0.05, total_pairs=100, batch_size=10):
+
+def compare_three_methods(df, test_df, train_params, pretrained_model, target_col, use_bradley, exp, add_noise, noise, total_pairs, batch_size):
     '''
     Compare three methods:
     1. Blank model with uncertainty-based pairs
     2. Pretrained model with uncertainty-based pairs
     3. Blank model with random pairs
     '''
-    f1_scores_UB = []
-    f1_scores_UP = []
-    f1_scores_RB = []
     
     X_test = test_df.drop(columns=['label'])
     y_test = test_df['label']
     dtest = xgb.DMatrix(X_test, enable_categorical=True)
     all_pairs = generate_all_pairs(df)
     
-    f1_scores_UB = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
-    f1_scores_UP = uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
-    f1_scores_RB = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, pretrain_params, dtest, y_test)
+    f1_scores_UB = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
+    f1_scores_UP = uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
+    f1_scores_RB = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
     
     return f1_scores_UB, f1_scores_UP, f1_scores_RB
 
