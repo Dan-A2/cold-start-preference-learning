@@ -35,16 +35,18 @@ Our proposed framework consists of four main stages designed to efficiently lear
 
 ## Repository Structure
 
+```
 .
 ├── Config/
-│ └── util.py # Utility functions
-├── Datasets/ # Directory for datasets
-├── FIFA/ # Initial Jupyter notebooks for the FIFA dataset (Different experiments were done here)
-├── Images/ # Output directory for generated plot images
-├── Plots/ # Output directory for plots' data
-├── *.ipynb # Notebooks for datasets
-├── plot_generator.py # Code to generate plots from saved data
-└── README.md # This file
+│ └── util.py           # Utility functions
+├── Datasets/           # Directory for datasets
+├── FIFA/               # Initial Jupyter notebooks for the FIFA dataset (Different experiments were done here)
+├── Images/             # Output directory for generated plot images
+├── Plots/              # Output directory for plots' data
+├── *.ipynb             # Notebooks for datasets
+├── plot_generator.py   # Code to generate plots from saved data
+└── README.md           # This file
+```
 
 ---
 
