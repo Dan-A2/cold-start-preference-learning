@@ -3,6 +3,8 @@
 This repository contains the official source code and experimental setup for the paper:  
 **"Cold Start Active Preference Learning in Socio-Economic Domains"**, submitted to the ....
 
+![Framework Overview](Images/framework_diagram.png)
+
 ---
 
 ## Abstract
