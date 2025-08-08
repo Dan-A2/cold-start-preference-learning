@@ -64,7 +64,52 @@ All datasets can be downloaded directly **except** the Household dataset due to 
 
 ## Usage and Replication
 
-The experiments can be run from the notebooks.
+The experiments can be run from the notebooks. The core logic for running a comparative experiment is outlined below.
+
+---
+### Example Experiment Script
+
+This block illustrates the main loop used to run the experiments for a given scenario (e.g., low-data with repetitions or an extended single run). The parameters for the scenario are configured first, and then the main comparison function is called iteratively.
+
+```python
+# --- 1. Configure Experiment Parameters ---
+# These parameters can be adjusted for different scenarios
+step = 50
+num_samples = 800
+repeats = 40
+dataset_name = "household"
+
+# --- 2. Initialize Result Storage ---
+f1_scores_UB_repeats = []
+f1_scores_UP_repeats = []
+f1_scores_RB_repeats = []
+
+# --- 3. Run the Experiment Loop ---
+for i in range(num_runs):
+    for _ in range(repeats):
+    f1_scores_UB, f1_scores_UP, f1_scores_RB = compare_three_methods(
+        df=data,
+        test_df=test_df,
+        train_params=train_params,
+        pretrained_model=pretrained_model,
+        target_col=target_col_name,
+        use_bradley=True,
+        exp=False,
+        add_noise=False,
+        total_pairs=num_samples,
+        batch_size=step,
+    )
+
+    # Store the results from this run
+    f1_scores_UB_repeats.append(f1_scores_UB)
+    f1_scores_UP_repeats.append(f1_scores_UP)
+    f1_scores_RB_repeats.append(f1_scores_RB)
+
+# --- 4. Save Final Results ---
+output_path = f"Plots/{dataset_name}_f1_repeat.pkl"
+save_f1_scores(output_path, f1_scores_UB_repeats, f1_scores_UP_repeats, f1_scores_RB_repeats)
+```
+---
 
 ### Replicating Paper Results
 
@@ -76,7 +121,17 @@ To replicate the figures from the paper, run the script for all policies across 
 
 If you use this code or our framework in your research, please cite our paper:
 
-> _[To be added]_  
+```
+@misc{fayazbakhsh2025coldstartactivepreference,
+      title={Cold Start Active Preference Learning in Socio-Economic Domains}, 
+      author={Mojtaba Fayaz-Bakhsh and Danial Ataee and MohammadAmin Fazli},
+      year={2025},
+      eprint={2508.05090},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2508.05090}, 
+} 
+```
 
 ---
 
