@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
+from scipy.stats import spearmanr, kendalltau
 from sklearn.calibration import LabelEncoder
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
+from sklearn.metrics import accuracy_score
 import xgboost as xgb
 from tqdm import tqdm
 import pickle
@@ -81,6 +82,7 @@ def standardize_features(df, target_col_name):
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
     if target_col_name in numeric_cols:
         numeric_cols.remove(target_col_name)
+    numeric_cols.remove('GPT')
     scaler = StandardScaler()
     df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
     return df
@@ -90,6 +92,14 @@ def drop_redundant_cols(df):
     for col in df.columns:
         if len(df[col].unique()) == 1:
             df.drop(col,inplace=True,axis=1)
+
+
+def add_gpt_rank(df, ranking_csv_path):
+    ranking = pd.read_csv(ranking_csv_path)
+    ranking = ranking.sort_values("row_id").reset_index(drop=True)
+    new_df = df.copy().reset_index(drop=True)
+    new_df["GPT"] = ranking["rank"].values
+    return new_df
 
 
 def create_pair_pca(df, pairs, target_col):
@@ -106,6 +116,24 @@ def create_pair_pca(df, pairs, target_col):
         pair['label'] = label
         paired_data.append(pair)
     paired_df = pd.DataFrame(paired_data)
+    return paired_df
+
+
+def create_pair_gpt(df, pairs, target_col):
+    '''
+    This function creates the dual dataframe used for our model according to the GPT
+    '''
+    paired_data = []
+    df_tmp = df.drop(columns=[target_col])
+    for idx1, idx2 in pairs:
+        player1 = df_tmp.iloc[idx1].add_suffix('_1')
+        player2 = df_tmp.iloc[idx2].add_suffix('_2')
+        label = int(player1['GPT_1'] > player2['GPT_2'])
+        pair = pd.concat([player1, player2])
+        pair['label'] = label
+        paired_data.append(pair)
+    paired_df = pd.DataFrame(paired_data)
+    paired_df.drop(columns=['GPT_1', 'GPT_2'], inplace=True)
     return paired_df
 
 
@@ -232,71 +260,10 @@ def generate_weighted_pairs(df, n, residuals):
     return pairs
 
 
-def train_evaluate_repeat(generate_pairs_func, df, num_samples, test_df, label_col, use_bradley, exp, add_noise, noise=0.05, depth=5, repeats=10):
-    accuracies = []
-    precisions = []
-    recalls = []
-    f1_scores = []
-    
-    for _ in tqdm(range(repeats)):
-        # Generate pairs and create the training dataframe
-        pairs = generate_pairs_func(df, num_samples)
-        
-        if add_noise:
-            train_df = create_pair_noisy(df, pairs, label_col, variance=noise)
-        elif use_bradley:
-            if exp:
-                train_df = create_pair_bradley_exp(df, pairs, label_col)
-            else:
-                train_df = create_pair_bradley(df, pairs, label_col)
-        else:
-            train_df = create_pair_df(df, pairs, label_col)
-        
-        # Prepare the training data
-        X_train = train_df.drop(columns=['label'])
-        y_train = train_df['label']
-        
-        # Prepare the test data
-        X_test = test_df.drop(columns=['label'])
-        y_test = test_df['label']
-        
-        # Train the model
-        model = xgb.XGBClassifier(max_depth=depth, n_estimators=XGB_ESTIMATORS, eval_metric='logloss', enable_categorical=True)
-        model.fit(X_train, y_train)
-        
-        # Make predictions
-        y_pred = model.predict(X_test)
-        
-        # Calculate evaluation metrics
-        accuracy, precision, recall, _, f1 = calculate_metrics(y_test, y_pred)
-        
-        accuracies.append(accuracy)
-        precisions.append(precision)
-        recalls.append(recall)
-        f1_scores.append(f1)
-    
-    mean_accuracy = np.mean(accuracies)
-    mean_precision = np.mean(precisions)
-    mean_recall = np.mean(recalls)
-    mean_f1 = np.mean(f1_scores)
-    
-    print(f"Mean Accuracy: {mean_accuracy}")
-    print(f"Mean Precision: {mean_precision}")
-    print(f"Mean Recall: {mean_recall}")
-    print(f"Mean F1 Score: {mean_f1}")
-    return mean_f1
-
-
-def calculate_metrics(y_test, y_pred):
-    '''
-    This function calculates the required metrics to assess model performance
-    '''
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    conf_matrix = confusion_matrix(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
-    return accuracy, precision, recall, conf_matrix, f1
+def generate_dmatrix(df):
+    X_pretrain = df.drop(columns=['label'])
+    y_pretrain = df['label']
+    return xgb.DMatrix(X_pretrain, label=y_pretrain, enable_categorical=True)
 
 
 def pretrain_model(df, n_samples, train_params, target_col):
@@ -305,9 +272,7 @@ def pretrain_model(df, n_samples, train_params, target_col):
     '''
     pretrain_pairs = generate_random_pairs(df, n=n_samples)
     pretrain_df = create_pair_pca(df, pretrain_pairs, target_col)
-    X_pretrain = pretrain_df.drop(columns=['label'])
-    y_pretrain = pretrain_df['label']
-    dtrain_pretrain = xgb.DMatrix(X_pretrain, label=y_pretrain, enable_categorical=True)
+    dtrain_pretrain = generate_dmatrix(pretrain_df)
     pretrained_model = xgb.train(train_params, dtrain_pretrain, num_boost_round=XGB_ESTIMATORS)
     return pretrained_model
 
@@ -318,10 +283,17 @@ def pretrain_model_with_residuals(df, n_samples, train_params, target_col, resid
     '''
     pretrain_pairs = generate_weighted_pairs(df, n=n_samples, residuals=residuals)
     pretrain_df = create_pair_pca(df, pretrain_pairs, target_col)
-    X_pretrain = pretrain_df.drop(columns=['label'])
-    y_pretrain = pretrain_df['label']
-    dtrain_pretrain = xgb.DMatrix(X_pretrain, label=y_pretrain, enable_categorical=True)
+    dtrain_pretrain = generate_dmatrix(pretrain_df)
     pretrained_model = xgb.train(train_params, dtrain_pretrain, num_boost_round=XGB_ESTIMATORS)
+    return pretrained_model
+
+
+def pretrain_with_gpt_ranking(df, n_samples, train_params, target_col):
+    pretrain_pairs = generate_random_pairs(df, n=n_samples)
+    pretrain_df = create_pair_gpt(df, pretrain_pairs, target_col)
+    dtrain_pretrain = generate_dmatrix(pretrain_df)
+    pretrained_model = xgb.train(train_params, dtrain_pretrain, num_boost_round=XGB_ESTIMATORS)
+
     return pretrained_model
 
 
@@ -360,9 +332,15 @@ def select_most_uncertain_pairs(model, df, pairs, batch_size, target_col):
     return selected_pairs
 
 
+def calulate_acc(model, dtest, y_test):
+    y_pred = model.predict(dtest)
+    y_pred_binary = (y_pred > 0.5).astype(int)
+    return accuracy_score(y_test, y_pred_binary)
+
+
 def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test):
     current_model_ub = None
-    f1_scores = []
+    accs = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with uncertainty pairs"):
         if current_model_ub is None:
             sampled_pair_indices = np.random.choice(len(all_pairs), size=batch_size, replace=False)
@@ -382,25 +360,21 @@ def uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_no
         else:
             train_df_ub = create_pair_df(df, selected_pairs, target_col)
         
-        X_train_ub = train_df_ub.drop(columns=['label'])
-        y_train_ub = train_df_ub['label']
-        dtrain_ub = xgb.DMatrix(X_train_ub, label=y_train_ub, enable_categorical=True)
+        dtrain_ub = generate_dmatrix(train_df_ub)
         
         if current_model_ub is None:
             current_model_ub = xgb.train(train_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS)
         else:
             current_model_ub = xgb.train(train_params, dtrain_ub, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_ub)
         
-        y_pred_ub = current_model_ub.predict(dtest)
-        y_pred_ub_binary = (y_pred_ub > 0.5).astype(int)
-        f1_scores.append(f1_score(y_test, y_pred_ub_binary))
+        accs.append(calulate_acc(current_model_ub, dtest, y_test))
     
-    return f1_scores
+    return accs
 
 
 def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test):
     current_model_up = pretrained_model.copy()
-    f1_scores = []
+    accs = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Pretrained model with uncertainty pairs"):
         sampled_pair_indices = np.random.choice(len(all_pairs), size=10_000, replace=False)
         sampled_pairs = [all_pairs[i] for i in sampled_pair_indices]
@@ -416,21 +390,17 @@ def uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs,
         else:
             train_df_up = create_pair_df(df, selected_pairs, target_col)
         
-        X_train_up = train_df_up.drop(columns=['label'])
-        y_train_up = train_df_up['label']
-        dtrain_up = xgb.DMatrix(X_train_up, label=y_train_up, enable_categorical=True)
-        
+        dtrain_up = generate_dmatrix(train_df_up)
         current_model_up = xgb.train(train_params, dtrain_up, num_boost_round=XGB_ESTIMATORS, xgb_model=current_model_up)
-        y_pred_up = current_model_up.predict(dtest)
-        y_pred_up_binary = (y_pred_up > 0.5).astype(int)
-        f1_scores.append(f1_score(y_test, y_pred_up_binary))
+        
+        accs.append(calulate_acc(current_model_up, dtest, y_test))
     
-    return f1_scores
+    return accs
 
 
 def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test):
     accumulated_train_data = []
-    f1_scores = []
+    accs = []
     for _ in tqdm(range(0, total_pairs, batch_size), desc="Blank model with random pairs"):
         random_pairs = generate_random_pairs(df, n=batch_size)
         if add_noise:
@@ -445,26 +415,20 @@ def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley
 
         accumulated_train_data.append(train_df_rb)
         full_train_df = pd.concat(accumulated_train_data, ignore_index=True)
-        X_train_rb = full_train_df.drop(columns=['label'])
-        y_train_rb = full_train_df['label']
-
-        dtrain_rb = xgb.DMatrix(X_train_rb, label=y_train_rb, enable_categorical=True)
+        dtrain_rb = generate_dmatrix(full_train_df)
         current_model_rb = xgb.train(train_params, dtrain_rb, num_boost_round=XGB_ESTIMATORS)
 
-        y_pred_rb = current_model_rb.predict(dtest)
-        y_pred_rb_binary = (y_pred_rb > 0.5).astype(int)
-        f1_scores.append(f1_score(y_test, y_pred_rb_binary))
+        accs.append(calulate_acc(current_model_rb, dtest, y_test))
 
-    return f1_scores
+    return accs
 
 
-def calculate_highest_f1(df, test_df, train_params, target_col, use_bradley, exp, total_pairs, batch_size):
-    X_test = test_df.drop(columns=['label'])
+def calculate_highest_acc(df, test_df, train_params, target_col, use_bradley, exp, total_pairs, batch_size):
     y_test = test_df['label']
-    dtest = xgb.DMatrix(X_test, enable_categorical=True)
+    dtest = generate_dmatrix(test_df)
     all_pairs = generate_all_pairs(df)
-    f1_scores = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, False, use_bradley, exp, 0, train_params, dtest, y_test)
-    return max(f1_scores)
+    accs = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, False, use_bradley, exp, 0, train_params, dtest, y_test)
+    return max(accs)
 
 
 def compare_three_methods(df, test_df, train_params, pretrained_model, target_col, use_bradley, exp, add_noise, noise, total_pairs, batch_size):
@@ -475,32 +439,33 @@ def compare_three_methods(df, test_df, train_params, pretrained_model, target_co
     3. Blank model with random pairs
     '''
     
-    X_test = test_df.drop(columns=['label'])
     y_test = test_df['label']
-    dtest = xgb.DMatrix(X_test, enable_categorical=True)
+    dtest = generate_dmatrix(test_df)
     all_pairs = generate_all_pairs(df)
     
-    f1_scores_UB = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
-    f1_scores_UP = uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
-    f1_scores_RB = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
+    acc_UB = uncertainty_blank(total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
+    acc_UP = uncertainty_pretrained(pretrained_model, total_pairs, batch_size, all_pairs, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
+    acc_RB = random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley, exp, noise, train_params, dtest, y_test)
     
-    return f1_scores_UB, f1_scores_UP, f1_scores_RB
+    return acc_UB, acc_UP, acc_RB
 
 
-def save_f1_scores(filename, ub_scores, up_scores, rb_scores):
+def save_accs(filename, ub_scores, up_scores, rb_scores, line, gpt):
     data = {
         'UB': ub_scores,
         'UP': up_scores,
-        'RB': rb_scores
+        'RB': rb_scores,
+        'line': line,
+        'GPT': gpt
     }
     with open(filename, 'wb') as f:
         pickle.dump(data, f)
 
 
-def load_f1_scores(filename):
+def load_accs(filename):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
-    return data['UB'], data['UP'], data['RB'], data['line']
+    return data['UB'], data['UP'], data['RB'], data['line'], data['GPT']
 
 
 def calculate_pca_var(df, target_col_name, useless_cols=[]):

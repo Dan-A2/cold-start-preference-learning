@@ -1,9 +1,9 @@
 # Ignore dataset file
-Datasets/Household/h.csv
-Datasets/Household/household.csv
+Datasets/Household/
 FIFA/Dataset/archive.zip
 tmp.py
-
+GPT_rank/
+gpt.py
 
 # Ignore typical temporary files
 __pycache__/
