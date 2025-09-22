@@ -7,7 +7,7 @@ while True:
     path = input('file name: ')
     if path == 'end':
         break
-    UB, UP, RB , line = load_f1_scores(F"Plots/{path}_f1_repeat.pkl")
+    UB, UP, RB , line, _ = load_accs(F"Plots/{path}_acc.pkl")
     average_f1_scores_UB = np.mean(UB, axis=0)
     average_f1_scores_UP = np.mean(UP, axis=0)
     average_f1_scores_RB = np.mean(RB, axis=0)
@@ -24,5 +24,5 @@ while True:
     plt.title(F'{path.capitalize()} Dataset')
     plt.legend()
     plt.grid(True)
-    plt.savefig(F'Images/{path}_repeat.png', bbox_inches='tight')
+    plt.savefig(F'Images/{path}.png', bbox_inches='tight')
     # plt.show()
