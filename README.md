@@ -54,7 +54,7 @@ Please download the datasets used in the study and place them in the `Datasets/`
 
 All datasets can be downloaded directly **except** the Household and FIFA 22 datasets due to their large size. You can download them from the following links:
 
-**[Download Household Dataset](https://mega.nz/file/bAkGxZ5Q#2p7BzZ0qufV3GfyzP8ik2jn4RkHE_1MSu0WscvILb7o)**
+**[Download Household Dataset](https://huggingface.co/datasets/Dan-A2/Iranian-Household-Data)**
 **[Download FIFA 22 Dataset](https://www.kaggle.com/datasets/stefanoleone992/fifa-22-complete-player-dataset)**
 
 ---
