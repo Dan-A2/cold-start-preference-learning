@@ -3,6 +3,7 @@ Datasets/Household/
 FIFA/Dataset/archive.zip
 tmp.py
 GPT_rank/
+GPT_ranked/
 gpt.py
 
 # Ignore typical temporary files

@@ -52,10 +52,15 @@ Our proposed framework consists of four main stages designed to efficiently lear
 
 Please download the datasets used in the study and place them in the `Datasets/` directory.
 
-All datasets can be downloaded directly **except** the Household and FIFA 22 datasets due to their large size. You can download them from the following links:
+Datasets can be downloaded directly **except** the Household and FIFA 22 datasets due to their large size. You can download them from the following links:
 
 **[Download Household Dataset](https://huggingface.co/datasets/Dan-A2/Iranian-Household-Data)**
 **[Download FIFA 22 Dataset](https://www.kaggle.com/datasets/stefanoleone992/fifa-22-complete-player-dataset)**
+
+Here are the links to other datasets' main pages:
+**[Download Credit Dataset](https://www.kaggle.com/datasets/uciml/german-credit)**
+**[Download Happiness Dataset](https://www.kaggle.com/datasets/mathurinache/world-happiness-report-20152021)**
+**[Download Student Dataset](https://www.kaggle.com/datasets/rabieelkharoua/students-performance-dataset)**
 
 ---
 

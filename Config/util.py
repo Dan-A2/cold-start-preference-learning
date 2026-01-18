@@ -82,7 +82,8 @@ def standardize_features(df, target_col_name):
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
     if target_col_name in numeric_cols:
         numeric_cols.remove(target_col_name)
-    numeric_cols.remove('GPT')
+    if 'GPT' in numeric_cols:
+        numeric_cols.remove('GPT')
     scaler = StandardScaler()
     df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
     return df
@@ -423,6 +424,15 @@ def random_blank(total_pairs, batch_size, df, target_col, add_noise, use_bradley
     return accs
 
 
+def get_n_highest_accs(n, data, test_df, train_params, target_col_name, exp, total_pairs, batch_size):
+    acc_list = []
+    for itt in range((n)):
+        print(f"iteration: {itt+1}")
+        acc = calculate_highest_acc(data, test_df, train_params=train_params, target_col=target_col_name, use_bradley=True, exp=exp, total_pairs=total_pairs, batch_size=batch_size)
+        acc_list.append(acc)
+    return acc_list
+
+
 def calculate_highest_acc(df, test_df, train_params, target_col, use_bradley, exp, total_pairs, batch_size):
     y_test = test_df['label']
     dtest = generate_dmatrix(test_df)
@@ -450,12 +460,12 @@ def compare_three_methods(df, test_df, train_params, pretrained_model, target_co
     return acc_UB, acc_UP, acc_RB
 
 
-def save_accs(filename, ub_scores, up_scores, rb_scores, line, gpt):
+def save_accs(filename, ub_scores, up_scores, rb_scores, accs, gpt):
     data = {
         'UB': ub_scores,
         'UP': up_scores,
         'RB': rb_scores,
-        'line': line,
+        'accs': accs,
         'GPT': gpt
     }
     with open(filename, 'wb') as f:
@@ -465,7 +475,7 @@ def save_accs(filename, ub_scores, up_scores, rb_scores, line, gpt):
 def load_accs(filename):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
-    return data['UB'], data['UP'], data['RB'], data['line'], data['GPT']
+    return data['UB'], data['UP'], data['RB'], data['accs'], data['GPT']
 
 
 def calculate_pca_var(df, target_col_name, useless_cols=[]):
