@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from Config.util import *
+import json
 
 while True:
     path = input('file name: ')
@@ -13,6 +14,14 @@ while True:
     UP = np.array(UP)
     RB = np.array(RB)
     acc_list = np.array(acc_list)
+    
+    with open(f'Results/{path}_dopewolfe_results.json', 'r') as f:
+        dopewolfe_data = json.load(f)
+    
+    dopewolfe_mean = np.array(dopewolfe_data['DopeWolfe']['mean'])
+    dopewolfe_std = np.array(dopewolfe_data['DopeWolfe']['std'])
+    dopewolfe_all_runs = np.array(dopewolfe_data['DopeWolfe']['all_runs'])
+    dopewolfe_ci = 1.96 * dopewolfe_std / np.sqrt(len(dopewolfe_all_runs))
 
     # ---- statistics helper ----
     def mean_ci(x):
@@ -48,6 +57,11 @@ while True:
     plt.plot(x, mean_RB, label='Random Selection Policy', color='green')
     plt.fill_between(x, mean_RB - ci_RB, mean_RB + ci_RB,
                      color='green', alpha=0.2)
+    
+    # ---- DopeWolfe ----
+    plt. plot(x, dopewolfe_mean, label='DopeWolfe', color='purple')
+    plt.fill_between(x, dopewolfe_mean - dopewolfe_ci, dopewolfe_mean + dopewolfe_ci,
+                     color='purple', alpha=0.2)
 
     # ---- Practical performance limit (acc_list) ----
     plt.axhline(y=acc_mean, color='red', linestyle='dashed',

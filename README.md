@@ -26,7 +26,7 @@ Our proposed framework consists of four main stages designed to efficiently lear
 3. **Simulated Expert Oracle**  
    An oracle that mimics a real-world expert by providing preference labels with stochastic noise, modeled using the Bradley-Terry model.
 
-4. **Active Learning Loop**  
+4. **Training Loop**  
    The warm-started model is incrementally refined by strategically querying the oracle for new labels, focusing on the most informative data pairs.
 
 ---
@@ -42,8 +42,10 @@ Our proposed framework consists of four main stages designed to efficiently lear
 ├── Images/             # Output directory for generated plot images
 ├── Plots/              # Output directory for plots' data
 ├── *.ipynb             # Notebooks for datasets
+├── dopewolf.py.        # Code to run dopewolf method
 ├── plot_generator.py   # Code to generate plots from saved data
-└── README.md           # This file
+├── README.md           # This file
+└── run.py              # Standalone script to execute the framework on a cleaned dataset
 ```
 
 ---
@@ -54,64 +56,19 @@ Please download the datasets used in the study and place them in the `Datasets/`
 
 Datasets can be downloaded directly **except** the Household and FIFA 22 datasets due to their large size. You can download them from the following links:
 
-**[Download Household Dataset](https://huggingface.co/datasets/Dan-A2/Iranian-Household-Data)**
+**[Download Household Dataset](https://huggingface.co/datasets/Dan-A2/Iranian-Household-Data)**<br />
 **[Download FIFA 22 Dataset](https://www.kaggle.com/datasets/stefanoleone992/fifa-22-complete-player-dataset)**
 
-Here are the links to other datasets' main pages:
-**[Download Credit Dataset](https://www.kaggle.com/datasets/uciml/german-credit)**
-**[Download Happiness Dataset](https://www.kaggle.com/datasets/mathurinache/world-happiness-report-20152021)**
+Here are the links to other datasets' main pages:<br />
+**[Download Credit Dataset](https://www.kaggle.com/datasets/uciml/german-credit)**<br />
+**[Download Happiness Dataset](https://www.kaggle.com/datasets/mathurinache/world-happiness-report-20152021)**<br />
 **[Download Student Dataset](https://www.kaggle.com/datasets/rabieelkharoua/students-performance-dataset)**
 
 ---
 
 ## Usage and Replication
 
-The experiments can be run from the notebooks. The core logic for running a comparative experiment is outlined below.
-
----
-### Example Experiment Script
-
-This block illustrates the main loop used to run the experiments for a given scenario (e.g., low-data with repetitions or an extended single run). The parameters for the scenario are configured first, and then the main comparison function is called iteratively.
-
-```python
-# --- 1. Configure Experiment Parameters ---
-# These parameters can be adjusted for different scenarios
-step = 50
-num_samples = 800
-repeats = 40
-dataset_name = "household"
-
-# --- 2. Initialize Result Storage ---
-f1_scores_UB_repeats = []
-f1_scores_UP_repeats = []
-f1_scores_RB_repeats = []
-
-# --- 3. Run the Experiment Loop ---
-for i in range(num_runs):
-    for _ in range(repeats):
-    f1_scores_UB, f1_scores_UP, f1_scores_RB = compare_three_methods(
-        df=data,
-        test_df=test_df,
-        train_params=train_params,
-        pretrained_model=pretrained_model,
-        target_col=target_col_name,
-        use_bradley=True,
-        exp=False,
-        add_noise=False,
-        total_pairs=num_samples,
-        batch_size=step,
-    )
-
-    # Store the results from this run
-    f1_scores_UB_repeats.append(f1_scores_UB)
-    f1_scores_UP_repeats.append(f1_scores_UP)
-    f1_scores_RB_repeats.append(f1_scores_RB)
-
-# --- 4. Save Final Results ---
-output_path = f"Plots/{dataset_name}_f1_repeat.pkl"
-save_f1_scores(output_path, f1_scores_UB_repeats, f1_scores_UP_repeats, f1_scores_RB_repeats)
-```
----
+The experiments can be run from the notebooks. The core logic for running a comparative experiment is outlined in the `run.py` script.
 
 ### Replicating Paper Results
 

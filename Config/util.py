@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, kendalltau
+from typing import Tuple, List
 from sklearn.calibration import LabelEncoder
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -489,3 +489,216 @@ def calculate_pca_var(df, target_col_name, useless_cols=[]):
     residuals = np.linalg.norm(features_scaled - reconstructed, axis=1)
     variance = np.mean(residuals ** 2)
     return variance, residuals
+
+
+# ============================================================================
+# DopeWolfe Algorithm Functions (from tkkiran/DopeWolfe repository)
+# ============================================================================
+
+
+def d_grad(V:  np.ndarray, p: np.ndarray, gamma: float = 1e-6, 
+           return_grad: bool = True, subset:  np.ndarray = None) -> Tuple[float, np.ndarray]:
+    """
+    Value of D-optimal objective and its gradient. 
+    
+    Parameters: 
+        V: n x d x d matrix of feature-vector outer products
+        p: distribution over feature vectors (design)
+        gamma: regularization parameter
+        return_grad: whether to return the gradient
+        subset: indices for stochastic gradient computation (DopeWolfe)
+    
+    Returns:
+        obj: objective value (negative log determinant)
+        dp: gradient of the objective
+    """
+    n, d, _ = V.shape
+    
+    # Inverse of the sample covariance matrix
+    G = np.einsum("ijk,i->jk", V, p) + gamma * np.eye(d)
+    invG = np.linalg. inv(G)
+    
+    # Objective value (log det)
+    sign, obj = np.linalg. slogdet(G)
+    obj *= -sign
+    
+    if return_grad:
+        # Gradient of the objective
+        if subset is None:
+            M = np.einsum("kl,ilj->ikj", invG, V)
+            dp = -np.trace(M, axis1=-2, axis2=-1)
+        else:
+            M = np.einsum("kl,ilj->ikj", invG, V[subset, :, :])
+            dp = np.zeros(n)
+            dp[subset] = -np.trace(M, axis1=-2, axis2=-1)
+    else:
+        dp = 0
+    
+    return obj, dp
+
+
+def fw_design(V: np.ndarray, pi_0: np.ndarray = None, R: int = None, 
+              num_iters: int = 100, tol: float = 1e-6, printout: bool = False) -> np.ndarray:
+    """
+    Frank-Wolfe algorithm for D-optimal design optimization.
+    
+    Parameters:
+        V: n x d x d matrix of feature-vector outer products
+        pi_0: initial distribution over feature vectors (design)
+        R: number of subsampled feature vectors in each iteration (DopeWolfe mode)
+        num_iters: maximum number of Frank-Wolfe iterations
+        tol: stop when two consecutive objective values differ by less than tol
+        printout: whether to print progress
+    
+    Returns:
+        pi: optimized distribution over pairs
+    """
+    n, d, _ = V.shape
+    
+    if pi_0 is None: 
+        # Initial allocation weights are 1/n and they add up to 1
+        pi = np.ones(n) / n
+    else:
+        pi = np.copy(pi_0)
+    
+    if R is None:
+        R = n
+    
+    # Frank-Wolfe iterations
+    for iter_idx in range(num_iters):
+        # Compute gradient at the last solution
+        pi_last = np.copy(pi)
+        
+        if R == n:
+            # Dope (full gradient)
+            last_obj, grad = d_grad(V, pi_last)
+        else:
+            # DopeWolfe (stochastic gradient with subsampling)
+            last_obj, grad = d_grad(V, pi_last, subset=np.random.permutation(n)[:R])
+        
+        if iter_idx == 0:
+            obj_s = [last_obj]
+        
+        if printout:
+            print(f"{last_obj:.4f}", end=" ")
+        
+        # Find a feasible LP solution in the direction of the gradient
+        pi_lp = np.zeros(n)
+        pi_lp[np.argmin(grad)] = 1.0
+        
+        # Golden-section search in the direction of the gradient
+        num_ls_iters = 20
+        left_step = 0
+        left_obj, _ = d_grad(V, pi_last, return_grad=False)
+        right_step = 1.0
+        right_obj, _ = d_grad(V, pi_lp, return_grad=False)
+        
+        for ls_iter in range(num_ls_iters):
+            mid1 = left_step + 0.618 * (right_step - left_step)
+            obj1, _ = d_grad(V, mid1 * pi_lp + (1 - mid1) * pi_last, return_grad=False)
+            mid2 = right_step - 0.618 * (right_step - left_step)
+            obj2, _ = d_grad(V, mid2 * pi_lp + (1 - mid2) * pi_last, return_grad=False)
+            
+            if obj1 < obj2:
+                left_step = mid2
+                left_obj = obj2
+            else:
+                right_step = mid1
+                right_obj = obj1
+        
+        best_step = (left_step + right_step) / 2
+        
+        # Update solution
+        pi = best_step * pi_lp + (1 - best_step) * pi_last
+        best_obj, _ = d_grad(V, pi, return_grad=False)
+        obj_s.append(best_obj)
+        
+        # Convergence check
+        if R == n and last_obj - best_obj < tol:
+            break
+        elif R != n and len(obj_s) > 2 * (n // R) and obj_s[-(n // R) - 1] - best_obj < tol:
+            break
+    
+    if printout:
+        print()
+    
+    pi = np.maximum(pi, 0)
+    pi /= pi.sum()
+    return pi
+
+
+def compute_outer_products(df: pd.DataFrame, pairs: List[Tuple[int, int]], 
+                           target_col: str) -> np.ndarray:
+    """
+    Compute outer products V_i = (x_1 - x_2)(x_1 - x_2)^T for each pair.
+    
+    This is used by the DopeWolfe algorithm to optimize the sampling distribution.
+    
+    Parameters:
+        df: dataframe with features and target
+        pairs: list of pair indices
+        target_col: name of target column
+    
+    Returns: 
+        V: n_pairs x d x d array of outer products
+    """
+    df_features = df.drop(columns=[target_col])
+    
+    # Convert entire dataframe to float array once (more efficient)
+    features_array = df_features.values.astype(np.float64)
+    
+    d = features_array.shape[1]
+    n_pairs = len(pairs)
+    
+    V = np.zeros((n_pairs, d, d))
+    
+    for i, (idx1, idx2) in enumerate(pairs):
+        x1 = features_array[idx1]
+        x2 = features_array[idx2]
+        diff = x1 - x2
+        V[i] = np.outer(diff, diff)
+    
+    return V
+
+
+def select_pairs_dopewolfe(df: pd.DataFrame, candidate_pairs: List[Tuple[int, int]], 
+                           target_col: str, n_select: int, 
+                           use_randomized:  bool = True) -> List[Tuple[int, int]]:
+    """
+    Use DopeWolfe algorithm to select informative pairs for labeling.
+    
+    Parameters:
+        df: dataframe with features
+        candidate_pairs: pool of candidate pairs to select from
+        target_col:  name of target column
+        n_select: number of pairs to select
+        use_randomized: if True, use DopeWolfe (randomized); else use Dope (full)
+    
+    Returns:
+        selected_pairs: list of selected pair indices
+    """
+    # Compute outer products for all candidate pairs
+    V = compute_outer_products(df, candidate_pairs, target_col)
+    n_candidates = len(candidate_pairs)
+    
+    # Run Frank-Wolfe to get optimal distribution
+    if use_randomized:
+        # DopeWolfe:  use subsampling (R = n/10)
+        R = max(n_candidates // 10, 10)
+        pi = fw_design(V, R=R, printout=False)
+    else:
+        # Dope: use full gradient
+        pi = fw_design(V, printout=False)
+    
+    # Sample pairs according to the optimized distribution
+    selected_indices = np.random.choice(
+        n_candidates, 
+        size=min(n_select, n_candidates), 
+        replace=False, 
+        p=pi
+    )
+    
+    selected_pairs = [candidate_pairs[i] for i in selected_indices]
+    return selected_pairs
+
+
