@@ -4,13 +4,19 @@ from typing import Tuple, List
 from sklearn.calibration import LabelEncoder
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from scipy.stats import rankdata
+from sklearn.linear_model import LogisticRegression
+from scipy.special import expit
 from sklearn.metrics import accuracy_score
 import xgboost as xgb
 from tqdm import tqdm
 import pickle
+import itertools
 
 
 XGB_ESTIMATORS = 500
+MAX_ITER = 1000
+SOLVER = 'lbfgs'
 
 
 def encode_object_columns(df, columns):
@@ -496,6 +502,26 @@ def calculate_pca_var(df, target_col_name, useless_cols=[]):
 # ============================================================================
 
 
+def pretrain_regression_model(data, num_pairs, residuals, target_col):
+    # Generate the pretrained pairs
+    pretrain_pairs = generate_weighted_pairs(data, n=num_pairs, residuals=residuals)
+    pretrain_df = create_pair_pca(data, pretrain_pairs, target_col)
+    
+    X_pretrain = pretrain_df.drop(columns=['label']).values
+    y_pretrain = pretrain_df['label'].values
+    
+    # Train pretrained model
+    pretrained_model_pca = LogisticRegression(
+        max_iter=MAX_ITER,
+        solver=SOLVER,
+        warm_start=True
+    )
+    pretrained_model_pca.fit(X_pretrain, y_pretrain)
+    pretrained_data = (X_pretrain, y_pretrain)
+    
+    return pretrained_model_pca, pretrained_data
+
+
 def d_grad(V:  np.ndarray, p: np.ndarray, gamma: float = 1e-6, 
            return_grad: bool = True, subset:  np.ndarray = None) -> Tuple[float, np.ndarray]:
     """
@@ -516,10 +542,10 @@ def d_grad(V:  np.ndarray, p: np.ndarray, gamma: float = 1e-6,
     
     # Inverse of the sample covariance matrix
     G = np.einsum("ijk,i->jk", V, p) + gamma * np.eye(d)
-    invG = np.linalg. inv(G)
+    invG = np.linalg.inv(G)
     
     # Objective value (log det)
-    sign, obj = np.linalg. slogdet(G)
+    sign, obj = np.linalg.slogdet(G)
     obj *= -sign
     
     if return_grad:
@@ -700,5 +726,166 @@ def select_pairs_dopewolfe(df: pd.DataFrame, candidate_pairs: List[Tuple[int, in
     
     selected_pairs = [candidate_pairs[i] for i in selected_indices]
     return selected_pairs
+
+
+# ============================================================================
+# GURO Algorithm Functions (from HermanBergstrom/GURO repository)
+# ============================================================================
+
+
+class BaseAlgorithm: 
+    """Generic algorithm for pairwise comparisons"""
+    
+    def __init__(self, X, update_every=10, seed=None):
+        self.X = X
+        self.n = X.shape[0]
+        self.d = X.shape[1]
+        self.t = 0
+        self.update_every = update_every
+        self.obs_data = []
+        self.obs_labels = []
+        self.obs_indices = []
+        self.random_state = np.random.RandomState(seed)
+        self.theta_hat = np.ones((self.d,))
+    
+    def act(self):
+        """Decide which pair to compare next"""
+        raise NotImplementedError
+    
+    def update(self, i, j, observation):
+        """Update the algorithm with the observation of the pair (i, j)"""
+        self.t += 1
+        x = self.X[i] - self.X[j]
+        self.obs_data.append(x)
+        self.obs_labels.append(observation)
+        self.obs_indices.append((i, j))
+        if self.t % self.update_every == 0 and self.t >= 10 and len(np.unique(self.obs_labels)) >= 2:
+            self.update_model()
+    
+    def update_model(self):
+        """Update the model with the current observations"""
+        raise NotImplementedError
+    
+    def ordering(self):
+        """Return ordering of data"""
+        scores = self.X.dot(self.theta_hat)
+        return rankdata(scores)
+
+
+class UniformSampling(BaseAlgorithm):
+    """Uniform random pair sampling (baseline)"""
+    
+    def __init__(self, X, update_every=10, seed=None):
+        super().__init__(X, update_every, seed)
+        self.model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER)
+    
+    def act(self):
+        return self.random_state.choice(self.n, size=2, replace=False), None
+    
+    def update_model(self):
+        if len(np.unique(self.obs_labels)) < 2:
+            return
+        self.model.fit(self.obs_data, self.obs_labels)
+        self.theta_hat = self.model.coef_[0]
+
+
+class GURO(BaseAlgorithm):
+    """Greedy Uncertainty Reduction for Ordering (GURO)"""
+    
+    def __init__(self, X, update_every=10, seed=None, sample_combinations=False):
+        super().__init__(X, update_every=update_every, seed=seed)
+        
+        self.sample_combinations = sample_combinations
+        
+        # Information matrix (starts as identity)
+        self.M = np.identity(self.d)
+        self.M_inv = np.linalg.inv(self.M)
+        
+        self.model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER)
+    
+    def act(self):
+        return self.find_best_pair(sample=self.sample_combinations)
+    
+    def find_best_pair(self, sample=False, combinations=None):
+        """Find the pair that maximizes uncertainty reduction"""
+        if combinations is None: 
+            combinations = np.array(list(itertools.combinations(range(self.n), 2)))
+        
+        # Subsample if too many combinations
+        if sample and len(combinations) > 5000:
+            sample_idxs = self.random_state.choice(len(combinations), 5000, replace=False)
+            combinations = combinations[sample_idxs]
+        
+        # x_i - x_j for all combinations
+        diff_matrix = np.array([self.X[c[0]] - self.X[c[1]] for c in combinations])
+        
+        # Compute exploration term (uncertainty) - select pair with highest uncertainty
+        exploration_term = np.sqrt(np.sum(diff_matrix.dot(self.M_inv) * diff_matrix, axis=1))
+        
+        idx = np.argmax(exploration_term)
+        return combinations[idx], None
+    
+    def update(self, i, j, observation):
+        """Update algorithm with observation"""
+        super().update(i, j, observation)
+        
+        # Update information matrix
+        x = self.X[i] - self.X[j]
+        y_hat = expit(x.dot(self.theta_hat))
+        coef = y_hat * (1 - y_hat)
+        self.M = self.M + coef * np.outer(x, x)
+        self.M_inv = np.linalg.inv(self.M)
+    
+    def update_model(self):
+        if len(np.unique(self.obs_labels)) < 2:
+            return
+        self.model.fit(self.obs_data, self.obs_labels)
+        self.theta_hat = self.model.coef_[0]
+
+
+class GURORealData(GURO):
+    """GURO with restricted available comparisons (for real datasets)"""
+    
+    def __init__(self, *args, available_combinations, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.available_combinations = np.array(available_combinations)
+    
+    def act(self):
+        # Random sampling for first 10 steps to get initial model
+        if self.t < 10:
+            index = self.random_state.choice(len(self.available_combinations), size=1, replace=False)
+            return self.available_combinations[index[0]], None
+        
+        return self.find_best_pair(sample=self.sample_combinations, combinations=self.available_combinations)
+    
+    def update(self, i, j, observation):
+        """Update and remove used pair from available combinations"""
+        for index in range(len(self.available_combinations)):
+            x1, x2 = self.available_combinations[index]
+            if (x1 == i and x2 == j) or (x2 == i and x1 == j):
+                self.available_combinations = np.delete(self.available_combinations, index, 0)
+                break
+        super().update(i, j, observation)
+
+
+class UniformSamplingRealData(UniformSampling):
+    """Uniform sampling with restricted available comparisons"""
+    
+    def __init__(self, *args, available_combinations, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.available_combinations = np.array(available_combinations)
+    
+    def act(self):
+        index = self.random_state.choice(len(self.available_combinations), size=1, replace=False)
+        return self.available_combinations[index[0]], None
+    
+    def update(self, i, j, observation):
+        """Update and remove used pair from available combinations"""
+        for index in range(len(self.available_combinations)):
+            x1, x2 = self.available_combinations[index]
+            if (x1 == i and x2 == j) or (x2 == i and x1 == j):
+                self.available_combinations = np.delete(self.available_combinations, index, 0)
+                break
+        super().update(i, j, observation)
 
 

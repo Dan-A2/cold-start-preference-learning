@@ -10,16 +10,6 @@ This script implements:
 from Config.util import *
 import json
 import time
-from sklearn.linear_model import LogisticRegression
-
-
-def train_linear_pairwise(X_train:  np.ndarray, y_train: np. ndarray) -> LogisticRegression: 
-    """
-    Train a logistic regression classifier for pairwise preference prediction.
-    """
-    model = LogisticRegression(max_iter=1000, solver='lbfgs')
-    model.fit(X_train, y_train)
-    return model
 
 
 def evaluate_model(model, X_test: np.ndarray, y_test: np.ndarray) -> float:
@@ -31,7 +21,8 @@ def evaluate_model(model, X_test: np.ndarray, y_test: np.ndarray) -> float:
 
 def run_experiment(df: pd.DataFrame, target_col: str, test_df: pd.DataFrame,
                    total_pairs: int = 800, step:  int = 50, 
-                   repeats: int = 40) -> dict:
+                   repeats: int = 40, pretrained_model=None,
+                   pretrained_data=None) -> dict:
     """
     Run the full experiment on DopeWolfe
     
@@ -80,9 +71,20 @@ def run_experiment(df: pd.DataFrame, target_col: str, test_df: pd.DataFrame,
             # Track total algorithm time for this repeat
             total_algo_time = 0.0
             
+            # Initialize model ONCE per repeat
+            if pretrained_model is not None:
+                # Start from pretrained model
+                model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER, n_jobs=-1, warm_start=True)
+                model.coef_ = pretrained_model.coef_.copy()
+                model.intercept_ = pretrained_model.intercept_.copy()
+                model.classes_ = pretrained_model.classes_.copy()
+            else:
+                # Start from scratch
+                model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER, n_jobs=-1)
+            
             for step_idx, n_pairs in enumerate(eval_points):
-                # Number of new pairs to select in this step
-                n_new = step if step_idx == 0 else step
+
+                n_new = step
                 
                 if len(remaining_candidates) == 0:
                     break
@@ -112,8 +114,14 @@ def run_experiment(df: pd.DataFrame, target_col: str, test_df: pd.DataFrame,
                 X_train = df_paired.drop(columns=['label']).values
                 y_train = df_paired['label'].values
                 
-                # Train Linear model
-                model = train_linear_pairwise(X_train, y_train)
+                # Combine with pretrained data if available
+                if pretrained_data is not None: 
+                    X_pretrain, y_pretrain = pretrained_data
+                    X_train = np.vstack([X_pretrain, X_train])
+                    y_train = np.concatenate([y_pretrain, y_train])
+                
+                # Train on cumulative data (model persists across iterations)
+                model.fit(X_train, y_train)
                 
                 # Evaluate on test set
                 accuracy = evaluate_model(model, X_test, y_test)
@@ -128,9 +136,10 @@ def run_experiment(df: pd.DataFrame, target_col: str, test_df: pd.DataFrame,
 
 if __name__ == "__main__":
     # Configuration
-    NAME = "fifa"
-    DATASET_PATH = 'Datasets/final_data.csv'
-    TARGET_COL = 'value_eur'
+    NAME = "credit"
+    DATASET_PATH = 'Datasets/credit.csv'
+    TARGET_COL = 'Credit amount'
+    USE_PRETRAINED = True  # Set to True to use pretrained model
     TOTAL_PAIRS = 800
     STEP = 50
     REPEATS = 40
@@ -144,17 +153,45 @@ if __name__ == "__main__":
     print("\n[1] Loading and preprocessing data...")
     data = pd.read_csv(DATASET_PATH)
     
-    
-    
+    # Cleaning code (if needed)
+    data.drop(columns=['Unnamed: 0'], inplace=True)
+    data.dropna(inplace=True)
+    data.reset_index(inplace=True, drop=True)
+    object_cols = data.select_dtypes(include='object').columns.to_list()
+    object_cols.append('Job')
+    data[object_cols] = data[object_cols].astype(str)
+    data = pd.get_dummies(data, columns=object_cols)
     data = standardize_features(data, TARGET_COL)
+    
+    # PCA
+    X = data.drop(columns=[TARGET_COL])
+    pca = PCA(n_components=2)
+    pca.fit(X)
+    data['PCA'] = pca.transform(X)[:, 0]
+    
     print(f"    Data shape: {data.shape}")
     print(f"    Target column: {TARGET_COL}")
+    
+    # Variance calculation to determine number of pairs
+    var, residuals = calculate_pca_var(data, TARGET_COL)
+    max_pairs = len(data)
+    alpha = 1e-7
+    num_pairs = int(max_pairs / (1 + alpha * var))
+    
+    pretrained_model_pca = None
+    pretrained_data = None
+    
+    # Load pretrained model if needed
+    if USE_PRETRAINED:
+        pretrained_model_pca, pretrained_data = pretrain_regression_model(data, num_pairs, residuals, TARGET_COL)
     
     # Generate test pairs and create test dataframe
     print(f"\n[2] Generating {TEST_SIZE} test pairs...")
     test_pairs = generate_random_pairs(data, TEST_SIZE)
     test_df = create_pair_df(data, test_pairs, TARGET_COL)
     print(f"    Test dataframe shape: {test_df.shape}")
+    
+    # print(evaluate_model(pretrained_model_pca, test_df.drop(columns=['label']).values, test_df['label'].values))
     
     # Run experiment
     print(f"\n[3] Running experiment...")
@@ -169,9 +206,10 @@ if __name__ == "__main__":
         test_df=test_df,
         total_pairs=TOTAL_PAIRS,
         step=STEP,
-        repeats=REPEATS
+        repeats=REPEATS,
+        pretrained_model=pretrained_model_pca,
+        pretrained_data=pretrained_data
     )
-    
     # Print summary statistics
     print("\n" + "=" * 60)
     print("RESULTS SUMMARY")
@@ -213,9 +251,12 @@ if __name__ == "__main__":
         }
     }
 
-    with open(f'Results/{NAME}_dopewolfe_results.json', 'w') as f:
+    path = f'Results/DopeWolf/{NAME}_dopewolfe_results.json'
+    if USE_PRETRAINED:
+        path = f'Results/DopeWolf/{NAME}_dopewolfe_results_pretrained.json'
+    with open(path, 'w') as f:
         json.dump(results_json, f, indent=2)
 
-    print(f"    Results saved to 'Results/{NAME}_dopewolfe_results.json'")
+    print(f"    Results saved to '{path}'")
     
     print("\nDone!")

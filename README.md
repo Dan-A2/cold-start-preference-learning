@@ -41,11 +41,17 @@ Our proposed framework consists of four main stages designed to efficiently lear
 ├── FIFA/               # Initial Jupyter notebooks for the FIFA dataset (Different experiments were done here)
 ├── Images/             # Output directory for generated plot images
 ├── Plots/              # Output directory for plots' data
+├── Results/
+│ └── DopeWolf          # Output directory for dopewolf
+│ └── GURO              # Output directory for guro
+│ └── times.txt         # Recorded times from stopwatch.py
 ├── *.ipynb             # Notebooks for datasets
-├── dopewolf.py.        # Code to run dopewolf method
+├── dopewolf.py         # Code to run dopewolf method
+├── guro.py             # Code to run guro method
 ├── plot_generator.py   # Code to generate plots from saved data
 ├── README.md           # This file
-└── run.py              # Standalone script to execute the framework on a cleaned dataset
+├── run.py              # Standalone script to execute the framework on a cleaned dataset
+└── stopwatch.py        # Script to measure the time required for our cold-start method
 ```
 
 ---

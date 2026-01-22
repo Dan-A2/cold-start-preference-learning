@@ -15,13 +15,23 @@ while True:
     RB = np.array(RB)
     acc_list = np.array(acc_list)
     
-    with open(f'Results/{path}_dopewolfe_results.json', 'r') as f:
+    # Load DopeWolfe results
+    with open(f'Results/DopeWolf/{path}_dopewolfe_results.json', 'r') as f:
         dopewolfe_data = json.load(f)
     
     dopewolfe_mean = np.array(dopewolfe_data['DopeWolfe']['mean'])
     dopewolfe_std = np.array(dopewolfe_data['DopeWolfe']['std'])
     dopewolfe_all_runs = np.array(dopewolfe_data['DopeWolfe']['all_runs'])
     dopewolfe_ci = 1.96 * dopewolfe_std / np.sqrt(len(dopewolfe_all_runs))
+
+    # Load GURO results
+    with open(f'Results/GURO/{path}_guro_results.json', 'r') as f:
+        guro_data = json.load(f)
+    
+    guro_mean = np.array(guro_data['GURO']['mean'])
+    guro_std = np.array(guro_data['GURO']['std'])
+    guro_all_runs = np.array(guro_data['GURO']['all_runs'])
+    guro_ci = 1.96 * guro_std / np.sqrt(len(guro_all_runs))
 
     # ---- statistics helper ----
     def mean_ci(x):
@@ -35,11 +45,21 @@ while True:
     mean_UP, ci_UP = mean_ci(UP)
     mean_RB, ci_RB = mean_ci(RB)
 
-    acc_mean = acc_list.mean()
-    acc_ci = 1.96 * acc_list.std() / np.sqrt(len(acc_list))
+    acc_max = acc_list.max()
 
     step, num_samples = 50, 800
     x = np.arange(step, num_samples + 1, step)
+
+    # ---- Print first iteration accuracy for all methods ----
+    print(f"\n{'='*50}")
+    print(f"First Iteration Accuracy (at {step} training samples) - {path.capitalize()} Dataset")
+    print(f"{'='*50}")
+    print(f"  Warm-Start Policy:       {mean_UB[0]:.4f} ± {ci_UB[0]:.4f}")
+    print(f"  Cold-Start Policy:      {mean_UP[0]:.4f} ± {ci_UP[0]:.4f}")
+    print(f"  Random Selection:        {mean_RB[0]:.4f} ± {ci_RB[0]:.4f}")
+    print(f"  DopeWolfe:               {dopewolfe_mean[0]:.4f} ± {dopewolfe_ci[0]:.4f}")
+    print(f"  GURO:                   {guro_mean[0]:.4f} ± {guro_ci[0]:.4f}")
+    print(f"{'='*50}\n")
 
     plt.figure(figsize=(12, 6))
 
@@ -59,17 +79,18 @@ while True:
                      color='green', alpha=0.2)
     
     # ---- DopeWolfe ----
-    plt. plot(x, dopewolfe_mean, label='DopeWolfe', color='purple')
+    plt.plot(x, dopewolfe_mean, label='DopeWolfe', color='purple')
     plt.fill_between(x, dopewolfe_mean - dopewolfe_ci, dopewolfe_mean + dopewolfe_ci,
                      color='purple', alpha=0.2)
 
-    # ---- Practical performance limit (acc_list) ----
-    plt.axhline(y=acc_mean, color='red', linestyle='dashed',
+    # ---- GURO ----
+    plt.plot(x, guro_mean, label='GURO', color='brown')
+    plt.fill_between(x, guro_mean - guro_ci, guro_mean + guro_ci,
+                     color='brown', alpha=0.2)
+
+    # ---- Practical performance limit (acc_max) ----
+    plt.axhline(y=acc_max, color='red', linestyle='dashed',
                 label='Practical Performance Limit')
-    plt.fill_between(x,
-                     acc_mean - acc_ci,
-                     acc_mean + acc_ci,
-                     color='red', alpha=0.15)
 
     plt.xlabel('Number of Training Samples')
     plt.ylabel('Test Data Performance')

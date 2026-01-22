@@ -1,0 +1,5 @@
+Credit: 1.579 seconds        5219 pairs
+FIFA: 4.336 seconds          9999 pairs
+Happiness: 0.562 seconds     1559 pairs
+Household: 4.093 seconds     11999 pairs
+Student: 6.813 seconds       23919 pairs
