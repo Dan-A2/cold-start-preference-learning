@@ -43,7 +43,8 @@ Our proposed framework consists of four main stages designed to efficiently lear
 ├── Plots/              # Output directory for plots' data
 ├── Results/
 │ └── DopeWolf          # Output directory for dopewolf
-│ └── GURO              # Output directory for guro
+│ ├── GURO              # Output directory for guro
+│ ├── Regression        # Highest accuracies of logisitc regression model
 │ └── times.txt         # Recorded times from stopwatch.py
 ├── *.ipynb             # Notebooks for datasets
 ├── dopewolf.py         # Code to run dopewolf method

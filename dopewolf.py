@@ -74,13 +74,13 @@ def run_experiment(df: pd.DataFrame, target_col: str, test_df: pd.DataFrame,
             # Initialize model ONCE per repeat
             if pretrained_model is not None:
                 # Start from pretrained model
-                model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER, n_jobs=-1, warm_start=True)
+                model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER, warm_start=True)
                 model.coef_ = pretrained_model.coef_.copy()
                 model.intercept_ = pretrained_model.intercept_.copy()
                 model.classes_ = pretrained_model.classes_.copy()
             else:
                 # Start from scratch
-                model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER, n_jobs=-1)
+                model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER)
             
             for step_idx, n_pairs in enumerate(eval_points):
 
@@ -136,9 +136,9 @@ def run_experiment(df: pd.DataFrame, target_col: str, test_df: pd.DataFrame,
 
 if __name__ == "__main__":
     # Configuration
-    NAME = "credit"
-    DATASET_PATH = 'Datasets/credit.csv'
-    TARGET_COL = 'Credit amount'
+    NAME = "student"
+    DATASET_PATH = 'Datasets/Student_performance_data _.csv'
+    TARGET_COL = 'GPA'
     USE_PRETRAINED = True  # Set to True to use pretrained model
     TOTAL_PAIRS = 800
     STEP = 50
@@ -154,13 +154,15 @@ if __name__ == "__main__":
     data = pd.read_csv(DATASET_PATH)
     
     # Cleaning code (if needed)
-    data.drop(columns=['Unnamed: 0'], inplace=True)
-    data.dropna(inplace=True)
-    data.reset_index(inplace=True, drop=True)
-    object_cols = data.select_dtypes(include='object').columns.to_list()
-    object_cols.append('Job')
-    data[object_cols] = data[object_cols].astype(str)
-    data = pd.get_dummies(data, columns=object_cols)
+    data.drop(columns=['GradeClass', 'StudentID'], inplace=True)
+    object_columns = ['Gender', 'Ethnicity', 'ParentalEducation', 'Tutoring',
+                'ParentalSupport', 'Extracurricular', 'Sports', 'Music', 'Volunteering']
+    numeric_columns = ['Age', 'StudyTimeWeekly', 'Absences']
+    object_columns.remove('Tutoring')
+    numeric_columns.append('Tutoring')
+    data[numeric_columns] = data[numeric_columns].astype(int)
+    data[object_columns] = data[object_columns].astype(str)
+    data = pd.get_dummies(data, columns=object_columns)
     data = standardize_features(data, TARGET_COL)
     
     # PCA
@@ -168,21 +170,21 @@ if __name__ == "__main__":
     pca = PCA(n_components=2)
     pca.fit(X)
     data['PCA'] = pca.transform(X)[:, 0]
+    data['PCA'] = data['PCA'].max() - data['PCA']
     
     print(f"    Data shape: {data.shape}")
     print(f"    Target column: {TARGET_COL}")
-    
-    # Variance calculation to determine number of pairs
-    var, residuals = calculate_pca_var(data, TARGET_COL)
-    max_pairs = len(data)
-    alpha = 1e-7
-    num_pairs = int(max_pairs / (1 + alpha * var))
     
     pretrained_model_pca = None
     pretrained_data = None
     
     # Load pretrained model if needed
     if USE_PRETRAINED:
+        # Variance calculation to determine number of pairs
+        var, residuals = calculate_pca_var(data, TARGET_COL)
+        max_pairs = len(data) // 10
+        alpha = 1e-6
+        num_pairs = int(max_pairs / (1 + alpha * var))
         pretrained_model_pca, pretrained_data = pretrain_regression_model(data, num_pairs, residuals, TARGET_COL)
     
     # Generate test pairs and create test dataframe

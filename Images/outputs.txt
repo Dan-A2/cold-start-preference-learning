@@ -1,0 +1,128 @@
+file name: credit
+
+============================================================
+First Iteration Accuracy (at 50 training samples)
+Dataset: Credit
+============================================================
+
+XGBoost Models:
+  Warm-Start Policy:       0.5998 ± 0.0106
+  Cold-Start Policy:       0.7377 ± 0.0002
+  Random Selection:        0.6074 ± 0.0144
+
+Regression Models:
+  DopeWolfe:               0.6955 ± 0.0056
+  DopeWolfe (Pretrained):  0.7669 ± 0.0011
+  GURO:                    0.7280 ± 0.0080
+  GURO (Pretrained):       0.7560 ± 0.0049
+
+Performance Limits:
+  XGBoost Max:             0.8538
+  Regression Max:          0.8030
+============================================================
+
+Saved: Images/credit_xgboost.png
+Saved: Images/credit_regression.png
+file name: fifa
+
+============================================================
+First Iteration Accuracy (at 50 training samples)
+Dataset: Fifa
+============================================================
+
+XGBoost Models:
+  Warm-Start Policy:       0.7183 ± 0.0140
+  Cold-Start Policy:       0.8548 ± 0.0003
+  Random Selection:        0.7059 ± 0.0152
+
+Regression Models:
+  DopeWolfe:               0.7980 ± 0.0075
+  DopeWolfe (Pretrained):  0.8818 ± 0.0001
+  GURO:                    0.8082 ± 0.0087
+  GURO (Pretrained):       0.8111 ± 0.0072
+
+Performance Limits:
+  XGBoost Max:             0.9194
+  Regression Max:          0.9537
+============================================================
+
+Saved: Images/fifa_xgboost.png
+Saved: Images/fifa_regression.png
+file name: happiness
+
+============================================================
+First Iteration Accuracy (at 50 training samples)
+Dataset: Happiness
+============================================================
+
+XGBoost Models:
+  Warm-Start Policy:       0.7079 ± 0.0152
+  Cold-Start Policy:       0.8522 ± 0.0007
+  Random Selection:        0.7182 ± 0.0133
+
+Regression Models:
+  DopeWolfe:               0.8284 ± 0.0055
+  DopeWolfe (Pretrained):  0.8608 ± 0.0003
+  GURO:                    0.8423 ± 0.0059
+  GURO (Pretrained):       0.8408 ± 0.0073
+
+Performance Limits:
+  XGBoost Max:             0.9149
+  Regression Max:          0.8721
+============================================================
+
+Saved: Images/happiness_xgboost.png
+Saved: Images/happiness_regression.png
+file name: household
+
+============================================================
+First Iteration Accuracy (at 50 training samples)
+Dataset: Household
+============================================================
+
+XGBoost Models:
+  Warm-Start Policy:       0.6478 ± 0.0190
+  Cold-Start Policy:       0.7874 ± 0.0005
+  Random Selection:        0.6273 ± 0.0221
+
+Regression Models:
+  DopeWolfe:               0.7342 ± 0.0119
+  DopeWolfe (Pretrained):  0.8242 ± 0.0026
+  GURO:                    0.7717 ± 0.0151
+  GURO (Pretrained):       0.8336 ± 0.0155
+
+Performance Limits:
+  XGBoost Max:             0.8854
+  Regression Max:          0.9983
+============================================================
+
+Saved: Images/household_xgboost.png
+Saved: Images/household_regression.png
+file name: student
+
+============================================================
+First Iteration Accuracy (at 50 training samples)
+Dataset: Student
+============================================================
+
+XGBoost Models:
+  Warm-Start Policy:       0.7124 ± 0.0152
+  Cold-Start Policy:       0.8675 ± 0.0004
+  Random Selection:        0.7021 ± 0.0171
+
+Regression Models:
+  DopeWolfe:               0.8315 ± 0.0069
+  DopeWolfe (Pretrained):  0.8785 ± 0.0017
+  GURO:                    0.8691 ± 0.0049
+  GURO (Pretrained):       0.8717 ± 0.0043
+
+Performance Limits:
+  XGBoost Max:             0.8954
+  Regression Max:          0.9369
+============================================================
+
+Saved: Images/student_xgboost.png
+Saved: Images/student_regression.png
+file name: end
+
+All plots generated successfully!

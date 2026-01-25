@@ -447,6 +447,28 @@ def calculate_highest_acc(df, test_df, train_params, target_col, use_bradley, ex
     return max(accs)
 
 
+def calculate_highest_acc_linear(df, test_df, target_col, total_pairs=100000):
+    X_test = test_df.drop(columns=['label']).values
+    y_test = test_df['label'].values
+    
+    train_pairs = generate_random_pairs(df, total_pairs)
+    train_df = create_pair_df(df, train_pairs, target_col)
+    X_train = train_df.drop(columns=['label']).values
+    y_train = train_df['label'].values
+    
+    model = LogisticRegression(
+        max_iter=MAX_ITER,
+        solver=SOLVER,
+        n_jobs=-1,
+        random_state=42
+    )
+    model.fit(X_train, y_train)
+    
+    y_pred = model.predict(X_test)
+    accuracy = np.mean(y_pred == y_test)
+    return accuracy
+
+
 def compare_three_methods(df, test_df, train_params, pretrained_model, target_col, use_bradley, exp, add_noise, noise, total_pairs, batch_size):
     '''
     Compare three methods:

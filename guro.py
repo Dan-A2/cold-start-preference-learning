@@ -41,22 +41,12 @@ def evaluate_test_accuracy(algo, X, test_pairs, true_order):
     return correct / total
 
 
-def run_experiment(df:  pd.DataFrame, target_col:  str, test_pairs: list,
-                   total_pairs: int = 800, step:  int = 50,
-                   repeats: int = 40) -> dict:
+def run_experiment(df: pd.DataFrame, target_col: str, test_pairs: list,
+                   total_pairs: int = 800, step: int = 50,
+                   repeats: int = 40, pretrained_model=None,
+                   pretrained_data=None) -> dict:
     """
-    Run the full experiment comparing GURO vs Uniform sampling.
-    
-    Parameters:
-        df: dataframe with features and target
-        target_col:  name of target column
-        test_pairs:  list of (i, j) pairs for testing
-        total_pairs: total number of pairs to sample
-        step: number of pairs to add at each step
-        repeats: number of experiment repetitions
-    
-    Returns:
-        Dictionary with accuracy results for each method
+    Run the full experiment comparing GURO
     """
     # Prepare feature matrix and true ordering
     feature_cols = [col for col in df.columns if col != target_col]
@@ -91,21 +81,28 @@ def run_experiment(df:  pd.DataFrame, target_col:  str, test_pairs: list,
         
         for method in ['GURO']:
             # Initialize algorithm
-            if method == 'GURO':
-                algo = GURORealData(
-                    X,
-                    available_combinations=candidate_pairs.copy(),
-                    seed=seed,
-                    sample_combinations=True,
-                    update_every=10
-                )
-            else:
-                algo = UniformSamplingRealData(
-                    X,
-                    available_combinations=candidate_pairs.copy(),
-                    seed=seed,
-                    update_every=10
-                )
+            algo = GURORealData(
+                X,
+                available_combinations=candidate_pairs.copy(),
+                seed=seed,
+                sample_combinations=True,
+                update_every=10
+            )
+            
+            # Initialize with pretrained model if provided
+            if pretrained_model is not None:
+                algo.theta_hat = pretrained_model.coef_[0].copy()
+                algo.model = LogisticRegression(max_iter=MAX_ITER, solver=SOLVER, warm_start=True)
+                algo.model.coef_ = pretrained_model.coef_.copy()
+                algo.model.intercept_ = pretrained_model.intercept_.copy()
+                algo.model.classes_ = pretrained_model.classes_.copy()
+                
+                # Initialize obs_data and obs_labels with pretrained data
+                if pretrained_data is not None:
+                    X_pretrain, y_pretrain = pretrained_data
+                    # Convert to list of differences for GURO's internal storage
+                    algo.obs_data = X_pretrain.tolist()
+                    algo.obs_labels = y_pretrain.tolist()
             
             # Track algorithm time
             total_algo_time = 0.0
@@ -145,6 +142,7 @@ if __name__ == "__main__":
     NAME = "student"
     DATASET_PATH = 'Datasets/Student_performance_data _.csv'
     TARGET_COL = 'GPA'
+    USE_PRETRAINED = True
     TOTAL_PAIRS = 800
     STEP = 50
     REPEATS = 40
@@ -168,10 +166,60 @@ if __name__ == "__main__":
     data[numeric_columns] = data[numeric_columns].astype(int)
     data[object_columns] = data[object_columns].astype(str)
     data = pd.get_dummies(data, columns=object_columns)
-    
     data = standardize_features(data, TARGET_COL)
+    
+    # PCA
+    X = data.drop(columns=[TARGET_COL])
+    pca = PCA(n_components=2)
+    pca.fit(X)
+    data['PCA'] = pca.transform(X)[:, 0]
+    
     print(f"    Data shape: {data.shape}")
     print(f"    Target column: {TARGET_COL}")
+    
+    # Pretrain model if needed
+    pretrained_model_pca = None
+    pretrained_data = None
+    
+    if USE_PRETRAINED:
+        
+        # Variance calculation to determine number of pairs
+        var, residuals = calculate_pca_var(data, TARGET_COL)
+        max_pairs = len(data) // 10
+        alpha = 1e-6
+        num_pairs = int(max_pairs / (1 + alpha * var))
+        
+        # Generate pretrained pairs with differences (not concatenated)
+        pretrain_pairs_pca = generate_weighted_pairs(data, n=num_pairs, residuals=residuals)
+        
+        # Create difference-based features for PCA
+        feature_cols = [col for col in data.columns if col != TARGET_COL]
+        X_full = data[feature_cols].values
+        
+        X_diff_list = []
+        y_diff_list = []
+        
+        for idx1, idx2 in pretrain_pairs_pca:
+            # Use PCA-based label
+            pca_val1 = data.iloc[idx1]['PCA']  # Assuming you have PCA column
+            pca_val2 = data.iloc[idx2]['PCA']
+            label = 1 if pca_val1 > pca_val2 else 0
+            
+            # Create difference
+            diff = X_full[idx1] - X_full[idx2]
+            X_diff_list.append(diff)
+            y_diff_list.append(label)
+        
+        X_diff = np.array(X_diff_list)
+        y_diff = np.array(y_diff_list)
+        
+        # Train PCA-compatible model
+        pretrained_model_pca = LogisticRegression(
+            max_iter=MAX_ITER,
+            solver=SOLVER,
+            warm_start=True
+        )
+        pretrained_model_pca.fit(X_diff, y_diff)
     
     # Generate test pairs
     print(f"\n[2] Generating {TEST_SIZE} test pairs...")
@@ -195,7 +243,9 @@ if __name__ == "__main__":
         test_pairs=test_pairs,
         total_pairs=TOTAL_PAIRS,
         step=STEP,
-        repeats=REPEATS
+        repeats=REPEATS,
+        pretrained_model=pretrained_model_pca,
+        pretrained_data=pretrained_data
     )
     
     # Print summary statistics
@@ -211,7 +261,7 @@ if __name__ == "__main__":
         print(f"    {method}: {mean_time:.3f} ± {std_time:.3f} seconds per run")
     
     for method in ['GURO']:
-        final_acc = results[method][: , -1]
+        final_acc = results[method][:, -1]
         print(f"\n{method}:")
         print(f"    Final accuracy: {final_acc.mean():.4f} ± {final_acc.std() / np.sqrt(len(final_acc)):.4f}")
         
@@ -226,8 +276,8 @@ if __name__ == "__main__":
     
     results_json = {
         'n_pairs': eval_points.tolist(),
-        'GURO':  {
-            'mean':  results['GURO'].mean(axis=0).tolist(),
+        'GURO': {
+            'mean': results['GURO'].mean(axis=0).tolist(),
             'std': results['GURO'].std(axis=0).tolist(),
             'all_runs': results['GURO'].tolist(),
             'timing_seconds': {
@@ -238,9 +288,13 @@ if __name__ == "__main__":
         }
     }
     
-    with open(f'Results/{NAME}_guro_results.json', 'w') as f:
+    path = f'Results/GURO/{NAME}_guro_results.json'
+    if USE_PRETRAINED:
+        path = f'Results/GURO/{NAME}_guro_results_pretrained.json'
+    
+    with open(path, 'w') as f:
         json.dump(results_json, f, indent=2)
     
-    print(f"    Results saved to 'Results/{NAME}_guro_results.json'")
+    print(f"    Results saved to '{path}'")
     
     print("\nDone!")
