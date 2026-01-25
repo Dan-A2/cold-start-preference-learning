@@ -37,7 +37,7 @@ XGBoost Models:
 
 Regression Models:
   DopeWolfe:               0.7980 ± 0.0075
-  DopeWolfe (Pretrained):  0.8818 ± 0.0001
+  DopeWolfe (Pretrained):  0.8215 ± 0.0079
   GURO:                    0.8082 ± 0.0087
   GURO (Pretrained):       0.8111 ± 0.0072
 
@@ -87,9 +87,9 @@ XGBoost Models:
 
 Regression Models:
   DopeWolfe:               0.7342 ± 0.0119
-  DopeWolfe (Pretrained):  0.8242 ± 0.0026
+  DopeWolfe (Pretrained):  0.7637 ± 0.0000
   GURO:                    0.7717 ± 0.0151
-  GURO (Pretrained):       0.8336 ± 0.0155
+  GURO (Pretrained):       0.7944 ± 0.0153
 
 Performance Limits:
   XGBoost Max:             0.8854

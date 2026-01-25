@@ -136,9 +136,9 @@ def run_experiment(df: pd.DataFrame, target_col: str, test_df: pd.DataFrame,
 
 if __name__ == "__main__":
     # Configuration
-    NAME = "student"
-    DATASET_PATH = 'Datasets/Student_performance_data _.csv'
-    TARGET_COL = 'GPA'
+    NAME = "household"
+    DATASET_PATH = 'Datasets/household.csv'
+    TARGET_COL = 'Percentile'
     USE_PRETRAINED = True  # Set to True to use pretrained model
     TOTAL_PAIRS = 800
     STEP = 50
@@ -154,23 +154,10 @@ if __name__ == "__main__":
     data = pd.read_csv(DATASET_PATH)
     
     # Cleaning code (if needed)
-    data.drop(columns=['GradeClass', 'StudentID'], inplace=True)
-    object_columns = ['Gender', 'Ethnicity', 'ParentalEducation', 'Tutoring',
-                'ParentalSupport', 'Extracurricular', 'Sports', 'Music', 'Volunteering']
-    numeric_columns = ['Age', 'StudyTimeWeekly', 'Absences']
-    object_columns.remove('Tutoring')
-    numeric_columns.append('Tutoring')
-    data[numeric_columns] = data[numeric_columns].astype(int)
-    data[object_columns] = data[object_columns].astype(str)
-    data = pd.get_dummies(data, columns=object_columns)
-    data = standardize_features(data, TARGET_COL)
+
     
     # PCA
-    X = data.drop(columns=[TARGET_COL])
-    pca = PCA(n_components=2)
-    pca.fit(X)
-    data['PCA'] = pca.transform(X)[:, 0]
-    data['PCA'] = data['PCA'].max() - data['PCA']
+    
     
     print(f"    Data shape: {data.shape}")
     print(f"    Target column: {TARGET_COL}")
@@ -182,7 +169,7 @@ if __name__ == "__main__":
     if USE_PRETRAINED:
         # Variance calculation to determine number of pairs
         var, residuals = calculate_pca_var(data, TARGET_COL)
-        max_pairs = len(data) // 10
+        max_pairs = len(data) // 100
         alpha = 1e-6
         num_pairs = int(max_pairs / (1 + alpha * var))
         pretrained_model_pca, pretrained_data = pretrain_regression_model(data, num_pairs, residuals, TARGET_COL)
