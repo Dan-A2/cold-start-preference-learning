@@ -136,28 +136,28 @@ while True:
     fig2, ax2 = plt.subplots(figsize=(12, 6))
 
     # ---- DopeWolfe ----
-    ax2.plot(x, dopewolfe_mean, label='DopeWolfe', color='purple', linewidth=2)
+    ax2.plot(x, dopewolfe_mean, label='DopeWolfe', color='#8731CE', linewidth=2)
     ax2.fill_between(x, dopewolfe_mean - dopewolfe_ci, dopewolfe_mean + dopewolfe_ci,
-                     color='purple', alpha=0.2)
+                     color='#8731CE', alpha=0.2)
 
     # ---- DopeWolfe Pretrained ----
-    ax2.plot(x, dopewolfe_pretrain_mean, label='DopeWolfe (Pretrained)', 
-             color='purple', linewidth=2, linestyle='--')
+    ax2.plot(x, dopewolfe_pretrain_mean, label='DopeWolfe (with warm-up)', 
+             color='#8731CE', linewidth=2, linestyle='--')
     ax2.fill_between(x, dopewolfe_pretrain_mean - dopewolfe_pretrain_ci, 
                      dopewolfe_pretrain_mean + dopewolfe_pretrain_ci,
-                     color='purple', alpha=0.15)
+                     color='#8731CE', alpha=0.15)
 
     # ---- GURO ----
-    ax2.plot(x, guro_mean, label='GURO', color='brown', linewidth=2)
+    ax2.plot(x, guro_mean, label='GURO', color='#78CE31', linewidth=2)
     ax2.fill_between(x, guro_mean - guro_ci, guro_mean + guro_ci,
-                     color='brown', alpha=0.2)
+                     color='#78CE31', alpha=0.2)
 
     # ---- GURO Pretrained ----
-    ax2.plot(x, guro_pretrain_mean, label='GURO (Pretrained)', 
-             color='brown', linewidth=2, linestyle='--')
+    ax2.plot(x, guro_pretrain_mean, label='GURO (with warm-up)', 
+             color='#78CE31', linewidth=2, linestyle='--')
     ax2.fill_between(x, guro_pretrain_mean - guro_pretrain_ci, 
                      guro_pretrain_mean + guro_pretrain_ci,
-                     color='brown', alpha=0.15)
+                     color='#78CE31', alpha=0.15)
 
     # ---- Practical performance limit (Regression) ----
     ax2.axhline(y=acc_max_regression, color='red', linestyle='dashed',
