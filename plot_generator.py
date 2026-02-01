@@ -99,7 +99,7 @@ while True:
     fig1, ax1 = plt.subplots(figsize=(12, 6))
 
     # ---- UB ----
-    ax1.plot(x, mean_UB, label='Warm-Start Policy', color='blue', linewidth=2)
+    ax1.plot(x, mean_UB, label='Warm-Start Policy', color='blue', linewidth=2, linestyle='dashed')
     ax1.fill_between(x, mean_UB - ci_UB, mean_UB + ci_UB,
                      color='blue', alpha=0.2)
 
@@ -109,17 +109,17 @@ while True:
                      color='orange', alpha=0.2)
 
     # ---- RB ----
-    ax1.plot(x, mean_RB, label='Random Selection Policy', color='green', linewidth=2)
+    ax1.plot(x, mean_RB, label='Random Selection Policy', color='green', linewidth=2, linestyle='dashed')
     ax1.fill_between(x, mean_RB - ci_RB, mean_RB + ci_RB,
                      color='green', alpha=0.2)
 
     # ---- Practical performance limit (XGBoost) ----
-    ax1.axhline(y=acc_max_xgb, color='red', linestyle='dashed',
+    ax1.axhline(y=acc_max_xgb, color='red', linestyle='dashdot',
                 label='Practical Performance Limit', linewidth=2)
 
     ax1.set_xlabel('Number of Training Samples', fontsize=12)
     ax1.set_ylabel('Test Data Performance', fontsize=12)
-    ax1.set_title(f'{path.capitalize()} Dataset - XGBoost Models', fontsize=14, fontweight='bold')
+    ax1.set_title(f'{"FIFA" if path == 'fifa' else path.capitalize()} Dataset - XGBoost Models', fontsize=14, fontweight='bold')
     ax1.legend(fontsize=10, loc='best')
     ax1.grid(True, alpha=0.3)
 
@@ -136,36 +136,36 @@ while True:
     fig2, ax2 = plt.subplots(figsize=(12, 6))
 
     # ---- DopeWolfe ----
-    ax2.plot(x, dopewolfe_mean, label='DopeWolfe', color='#8731CE', linewidth=2)
+    ax2.plot(x, dopewolfe_mean, label='DopeWolfe', color='#8731CE', linewidth=2, linestyle='dashed')
     ax2.fill_between(x, dopewolfe_mean - dopewolfe_ci, dopewolfe_mean + dopewolfe_ci,
                      color='#8731CE', alpha=0.2)
 
     # ---- DopeWolfe Pretrained ----
-    ax2.plot(x, dopewolfe_pretrain_mean, label='DopeWolfe (with warm-up)', 
-             color='#8731CE', linewidth=2, linestyle='--')
+    ax2.plot(x, dopewolfe_pretrain_mean, label='DopeWolfe (cold-start)', 
+             color='#8731CE', linewidth=2)
     ax2.fill_between(x, dopewolfe_pretrain_mean - dopewolfe_pretrain_ci, 
                      dopewolfe_pretrain_mean + dopewolfe_pretrain_ci,
                      color='#8731CE', alpha=0.15)
 
     # ---- GURO ----
-    ax2.plot(x, guro_mean, label='GURO', color='#78CE31', linewidth=2)
+    ax2.plot(x, guro_mean, label='GURO', color='#78CE31', linewidth=2, linestyle='dashed')
     ax2.fill_between(x, guro_mean - guro_ci, guro_mean + guro_ci,
                      color='#78CE31', alpha=0.2)
 
     # ---- GURO Pretrained ----
-    ax2.plot(x, guro_pretrain_mean, label='GURO (with warm-up)', 
-             color='#78CE31', linewidth=2, linestyle='--')
+    ax2.plot(x, guro_pretrain_mean, label='GURO (cold-start)', 
+             color='#78CE31', linewidth=2)
     ax2.fill_between(x, guro_pretrain_mean - guro_pretrain_ci, 
                      guro_pretrain_mean + guro_pretrain_ci,
                      color='#78CE31', alpha=0.15)
 
     # ---- Practical performance limit (Regression) ----
-    ax2.axhline(y=acc_max_regression, color='red', linestyle='dashed',
+    ax2.axhline(y=acc_max_regression, color='red', linestyle='dashdot',
                 label='Practical Performance Limit', linewidth=2)
 
     ax2.set_xlabel('Number of Training Samples', fontsize=12)
     ax2.set_ylabel('Test Data Performance', fontsize=12)
-    ax2.set_title(f'{path.capitalize()} Dataset - Logistic Regression Models', fontsize=14, fontweight='bold')
+    ax2.set_title(f'{"FIFA" if path == 'fifa' else path.capitalize()} Dataset - Logistic Regression Models', fontsize=14, fontweight='bold')
     ax2.legend(fontsize=10, loc='best')
     ax2.grid(True, alpha=0.3)
 
