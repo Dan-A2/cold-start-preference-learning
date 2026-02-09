@@ -117,10 +117,10 @@ while True:
     ax1.axhline(y=acc_max_xgb, color='red', linestyle='dashdot',
                 label='Practical Performance Limit', linewidth=2)
 
-    ax1.set_xlabel('Number of Training Samples', fontsize=12)
-    ax1.set_ylabel('Test Data Performance', fontsize=12)
-    ax1.set_title(f'{"FIFA" if path == 'fifa' else path.capitalize()} Dataset - XGBoost Models', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=10, loc='best')
+    ax1.set_xlabel('Number of Training Samples', fontsize=24)
+    ax1.set_ylabel('Test Data Performance', fontsize=24)
+    ax1.set_title(f'{"FIFA" if path == 'fifa' else path.capitalize()} Dataset - XGBoost Models', fontsize=28, fontweight='bold')
+    ax1.legend(fontsize=20, loc='best')
     ax1.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -163,10 +163,10 @@ while True:
     ax2.axhline(y=acc_max_regression, color='red', linestyle='dashdot',
                 label='Practical Performance Limit', linewidth=2)
 
-    ax2.set_xlabel('Number of Training Samples', fontsize=12)
-    ax2.set_ylabel('Test Data Performance', fontsize=12)
-    ax2.set_title(f'{"FIFA" if path == 'fifa' else path.capitalize()} Dataset - Logistic Regression Models', fontsize=14, fontweight='bold')
-    ax2.legend(fontsize=10, loc='best')
+    ax2.set_xlabel('Number of Training Samples', fontsize=24)
+    ax2.set_ylabel('Test Data Performance', fontsize=24)
+    ax2.set_title(f'{"FIFA" if path == 'fifa' else path.capitalize()} Dataset - Logistic Regression Models', fontsize=28, fontweight='bold')
+    ax2.legend(fontsize=20, loc='best')
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
